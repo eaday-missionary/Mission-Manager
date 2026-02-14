@@ -2,14 +2,35 @@
 
 A Python application to help manage mission-related tasks.
 
-## Setup
+## 1) First-time setup (PowerShell)
 
-```bash
+```powershell
+# from the repository root
 python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Development
+## 2) Run the app
 
-- Add code under `src/mission_manager`.
-- Write tests in the `tests/` directory.
+```powershell
+# option A: run as a module
+python -m mission_manager
+
+# option B: run the installed CLI command
+mission-manager
+```
+
+## 3) Run tests
+
+```powershell
+pytest
+```
+
+## Project structure
+
+- `src/mission_manager/`: application code
+- `tests/`: test files
+- `pyproject.toml`: package/config metadata
+- `requirements.txt`: quick install dependencies

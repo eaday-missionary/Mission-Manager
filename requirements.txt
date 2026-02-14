@@ -1,0 +1,3 @@
+# Install local package plus test tools
+-e .
+pytest>=8.0
