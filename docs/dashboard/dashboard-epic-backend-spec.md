@@ -19,9 +19,8 @@ Out of scope:
 - Backend implementation language: Python.
 - Required libraries:
   - `openpyxl` for Excel ingestion (`.xlsx` and `.xlsm`).
+  - `xlrd` for legacy `.xls` ingestion.
   - `sqlite3` (Python standard library) for local persistence.
-- Unsupported for MVP:
-  - `.xls` legacy format.
 
 ## Canonical Person Schema (Backend Model)
 Backend canonical record type:
@@ -54,8 +53,11 @@ Meta fields:
 - `source_row_number: int`
 - `dataset_version: int`
 
-## Accepted Excel Headers Contract (Strict)
-The importer must require exact canonical headers (order-independent, name-dependent):
+## Accepted Excel Headers Contract
+The importer uses canonical internal headers and accepts known aliases from sample mission spreadsheets.
+Validation is order-independent and name-based.
+
+Canonical header set:
 
 - `First Name`
 - `Last Name`
@@ -77,10 +79,20 @@ The importer must require exact canonical headers (order-independent, name-depen
 - `2nd Arrival Terminal`
 - `2nd Arrival Time`
 
+Accepted aliases:
+- `Transfer to Zone` -> `New Zone`
+- `Transfer to Area` -> `New Area`
+- `Staying?` -> `Staying or leaving?`
+- `Departing Terminal` -> `Departure Terminal`
+- `Arriving Terminal` -> `Arrival Terminal`
+- `Departing Terminal 2` -> `2nd Departure Terminal`
+- `Departure Time 2` -> `2nd Departure Time`
+- `Arrival Time 2` -> `2nd Arrival Time`
+- `Arriving Terminal 2` -> `2nd Arrival Terminal`
+
 Schema behavior:
-- Missing required headers must fail import with explicit `missing_headers` output.
-- Unexpected or mismatched headers must be returned in an `unexpected_headers` list.
-- Header policy is strict canonical names for MVP (no alias mapping).
+- Missing required canonical fields (after alias mapping) must fail import with explicit `missing_headers` output.
+- Unknown non-required columns are allowed and ignored, and listed in warnings as `unexpected_headers`.
 
 ## Backend Service Interfaces
 Required service contracts:
@@ -185,6 +197,8 @@ Boolean fields:
 - Patch-based update by `person_id`.
 - Re-validate changed fields.
 - Re-apply boolean/time normalization for updated fields.
+- UI `Apply` action triggers this `update_person(person_id, patch)` path and persists immediately.
+- Detail-form scrolling and right-side action panel layout do not change backend edit contracts.
 
 ## Query Support for Frontend Requirements
 Required query behavior:
@@ -200,7 +214,8 @@ Required query behavior:
   - `second_leg` (yes/no)
   - `second_departure_time` (earliest-latest)
   - `second_arrival_time` (earliest-latest)
-- Must support field-specific search across all 19 data fields.
+- Must support live global search across all 19 data fields with case-insensitive contains matching.
+- Must support boolean text matching so user queries like `yes`/`no` match stored boolean fields (`staying`, `second_leg`).
 - Combined search/filter/sort results must be deterministic and stable.
 
 ## Data Persistence and Startup Behavior
@@ -258,7 +273,7 @@ Observed header variants include names such as:
 - `Staying?`
 - `Departing Terminal`
 
-Under this strict-header MVP spec, those variants are schema mismatches. Input files must be renamed to canonical header names before import.
+Those variants are now accepted through alias mapping and normalized to canonical fields internally.
 
 ## Acceptance Criteria (Backend)
 - Canonical-header `.xlsx` and `.xlsm` imports succeed.
@@ -314,6 +329,6 @@ Under this strict-header MVP spec, those variants are schema mismatches. Input f
 - Backend remains Python-based.
 - `.xlsx` and `.xlsm` are in scope; `.xls` is out of scope for MVP.
 - SQLite is the local persistence engine.
-- Header policy is strict canonical names only.
+- Header policy uses canonical names plus known sample header aliases.
 - `Staying or leaving?` and `Second Leg?` normalize to `bool | null`.
 - Missing field values persist as `null`; frontend renders `-`.

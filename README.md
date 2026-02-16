@@ -28,6 +28,13 @@ mission-manager
 pytest
 ```
 
+## Local dashboard data
+
+- Runtime dependencies now include `openpyxl` (for `.xlsx`/`.xlsm`) and `xlrd` (for `.xls`).
+- Local dashboard persistence uses SQLite in the user app-data directory:
+  - Windows: `%LOCALAPPDATA%\MissionManager\dashboard.sqlite3`
+  - Linux/macOS fallback: `~/.local/share/MissionManager/dashboard.sqlite3`
+
 ## Project structure
 
 - `src/mission_manager/`: application code

@@ -75,17 +75,17 @@ Each journey uses this schema:
 - `Outcome`: Staff user can continue tasks instantly.
 - `Failure Path`: Corrupt local data triggers clear recovery notice and route to import flow.
 
-## Journey 3: Field-Specific Search to Find One Person
-- `JRNY-003 Goal`: Find one specific person quickly using field-level search.
+## Journey 3: Live Global Search to Find One Person
+- `JRNY-003 Goal`: Find one specific person quickly using live global search.
 - `Preconditions`: Dataset loaded.
 - `Steps`:
-  1. Staff user selects `Departure Terminal` in field selector.
-  2. Staff user enters terminal value to narrow records.
-  3. Staff user optionally refines by `Current Area`.
+  1. Staff user begins typing a value (for example terminal, area, or name) in search.
+  2. Results update letter-by-letter while typing.
+  3. Staff user optionally refines with filters.
   4. Staff user selects target record.
 - `System Response`:
-  - Updates results and count in near real time.
-  - Shows active field-search context.
+  - Updates results and count in near real time with case-insensitive contains matching.
+  - Searches across all 19 fields, including yes/no boolean values.
   - Highlights empty/no-match state if none found.
 - `Outcome`: Correct record opened in detail view.
 - `Failure Path`: No results state offers clear action to reset query or switch fields.
@@ -97,7 +97,8 @@ Each journey uses this schema:
   1. Staff user lands on default `Current Zone` alphabetical list.
   2. Staff user filters by `New Zone` and `Current Area`.
   3. Staff user overrides sort to `Departure Time` (earliest-latest).
-  4. Staff user reviews subset and optionally switches to `Last Name` (A-Z).
+  4. Staff user switches between `Full View` and `Compact` table modes based on task.
+  5. Staff user reviews subset and optionally switches to `Last Name` (A-Z).
 - `System Response`:
   - Shows active filter chips/indicators.
   - Sort direction and active sort key remain visible.
@@ -110,15 +111,16 @@ Each journey uses this schema:
 - `Preconditions`: User is on list view with at least one record.
 - `Steps`:
   1. Staff user opens person detail view.
-  2. Staff user reviews all 19 labeled fields.
-  3. Staff user edits one or more fields and saves.
+  2. Staff user reviews all 19 labeled fields and scrolls through the form as needed.
+  3. Staff user edits one or more fields and clicks Apply.
 - `System Response`:
+  - Keeps `Apply` and `Cancel` visible in a fixed right-side action panel while fields scroll.
   - Shows `-` for any missing values while preserving labels.
   - Validates required fields.
   - Shows inline errors for invalid values.
-  - On success, confirms save and persists locally.
+  - On success, confirms apply inline, persists locally, refreshes list data, and keeps the user in detail view.
 - `Outcome`: Updated values appear in detail and list views.
-- `Failure Path`: Validation errors block save; user can fix and retry or cancel.
+- `Failure Path`: Validation errors block apply; user can fix and retry or cancel.
 
 ## Journey 6: Append New Spreadsheet Data to Existing Dataset
 - `JRNY-006 Goal`: Add newly received records without losing current data.
@@ -198,7 +200,7 @@ Each journey uses this schema:
 - `UX-012` Should preserve user context when moving between list and detail views.
 - `UX-013` Must avoid dead-end states; every major error includes a next action.
 - `UX-014` Must maintain 19-field label visibility in all record detail states.
-- `UX-015` Must keep field-level search available for all records.
+- `UX-015` Must keep live global search available across all records and all 19 fields.
 - `UX-016` Must render missing values as `-` consistently across views.
 
 ## Journey Acceptance Checklist
@@ -210,7 +212,7 @@ Each journey uses this schema:
 - [ ] Default `Current Zone` alphabetical sort is documented.
 - [ ] Alternate sort/filter behavior is documented for all requested fields.
 - [ ] Search/filter/sort journeys define user-visible performance expectations.
-- [ ] Edit journey includes validation and save/cancel outcomes.
+- [ ] Edit journey includes validation and apply/cancel outcomes.
 - [ ] Append and replace journeys clearly separate non-destructive vs destructive behavior.
 - [ ] Error-handling journeys define actionable recovery steps.
 

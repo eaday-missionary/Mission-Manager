@@ -66,19 +66,19 @@ Navigation model:
 - Cancel in View C returns users to the exact prior list context (filters/sort/query retained).
 
 ## Core UX Requirements
-- `FR-001` Must support importing one Excel file (`.xlsx`/`.xls`) to create a dataset.
+- `FR-001` Must support importing one Excel file (`.xlsx`/`.xlsm`/`.xls`) to create a dataset.
 - `FR-002` Must show parsing/validation feedback before committing imported data.
 - `FR-003` Must provide global text search across key person fields.
 - `FR-004` Must provide field-specific filters.
 - `FR-005` Must support column sorting with ascending/descending direction.
 - `FR-006` Must allow selecting one record to open detailed view.
 - `FR-007` Must allow editing a record in a dedicated detail form (panel/page/modal).
-- `FR-008` Must provide explicit Save and Cancel actions for edits.
+- `FR-008` Must provide explicit Apply and Cancel actions for edits.
 - `FR-009` Must support append import that adds records to the existing dataset.
 - `FR-010` Must support full dataset reset/replace behind confirmation safeguards.
 - `UX-001` Must preserve user context (search/filter/sort/page position) when returning from detail view.
 - `UX-002` Should prefer progressive disclosure: show advanced controls only when needed.
-- `FR-031` Must support individual field search for each of the 19 fields.
+- `FR-031` Must support global search across all 19 fields using case-insensitive contains matching.
 - `FR-032` Must set default list sorting to `Current Zone` in alphabetical order.
 - `FR-033` Must support filter/sort controls for: `Current Area`, `New Zone`, `New Area`, `First Name` (A-Z), `Last Name` (A-Z), `Departure Time` (earliest-latest), `Arrival Time` (earliest-latest), `Second Leg?` (yes/no), `2nd Departure Time` (earliest-latest), and `2nd Arrival Time` (earliest-latest).
 - `FR-034` Must interpret `Second Leg?` as yes/no filter values.
@@ -96,14 +96,19 @@ Navigation model:
 - `FR-016` Must show total result count and currently visible result count.
 - `FR-017` Must show a no-results state with quick actions to clear filters/search.
 - `FR-036` Must apply default `Current Zone` alphabetical sort on first load and post-import load.
-- `FR-037` Must provide a field selector/dropdown to target individual-field search.
+- `FR-037` Must refresh list results automatically as users type, sort, or change filters (no manual refresh action).
 - `FR-038` Must show active sort/filter indicators clearly.
+- `FR-040` Must provide two dashboard table modes:
+  - `Full View`: all 19 columns visible at once without horizontal scrolling.
+  - `Compact`: denser table with horizontal scrolling for full column access.
 
 ### Person Detail State
 - `FR-018` Must display all editable fields for one selected person.
-- `FR-019` Must validate required fields before save and show inline errors.
-- `FR-020` Must show success feedback after save and persist changes locally.
+- `FR-019` Must validate required fields before apply and show inline errors.
+- `FR-020` Must show inline success feedback after apply, persist changes locally, and keep the user in Person Detail view.
 - `FR-039` Must show all 19 data labels with `-` where a value is missing.
+- `FR-041` Must provide vertical scrolling in Person Detail so all fields are reachable at smaller window sizes.
+- `FR-042` Must place `Apply` and `Cancel` in a fixed right-side action panel that remains visible while fields scroll.
 
 ### Data Management State
 - `FR-021` Must show current dataset status (loaded timestamp, approximate count).
@@ -111,8 +116,8 @@ Navigation model:
 - `FR-023` Must provide replace-all-data action with explicit confirmation.
 
 ## Interaction and Feedback Standards
-- `UX-003` Must show loading indicators for import, heavy filtering, and save operations.
-- `UX-004` Must show clear success notifications after import, append, replace, and save.
+- `UX-003` Must show loading indicators for import, heavy filtering, and apply operations.
+- `UX-004` Must show clear success notifications after import, append, replace, and apply.
 - `UX-005` Must show actionable error messages (what happened + what to do next).
 - `UX-006` Must require confirmation for destructive actions (replace/erase dataset).
 - `UX-007` Must distinguish blocking errors (cannot continue) vs non-blocking warnings.
@@ -122,6 +127,7 @@ Navigation model:
 - `PERF-002` Must target <=300 ms response for local search/filter/sort updates in typical usage.
 - `PERF-003` Should keep first render of existing local dataset within acceptable interactive delay (target <=1 s on typical mission devices).
 - `UX-008` Must remain usable on laptop and narrow/mobile widths for read and basic edit tasks.
+- `UX-017` Must open at the configured minimum window size (`1100x680`) and remain usable at that size.
 
 ## Data Persistence Behavior (Frontend-visible)
 - `FR-024` Must auto-save imported and edited data locally without requiring manual export.
@@ -130,7 +136,7 @@ Navigation model:
 - `FR-027` Should include a lightweight local schema/version marker for future compatibility changes.
 
 ## Accessibility and Usability Requirements
-- `ACC-001` Must support keyboard navigation for primary actions (search, row selection, save/cancel, confirmations).
+- `ACC-001` Must support keyboard navigation for primary actions (search, row selection, apply/cancel, confirmations).
 - `ACC-002` Must manage focus correctly in dialogs/forms (focus trap, return focus on close).
 - `ACC-003` Must provide explicit field labels and plain-language validation errors.
 - `ACC-004` Must maintain readable contrast and typography for common lighting conditions.
@@ -141,13 +147,15 @@ Navigation model:
 - Invalid file types, malformed files, or missing required columns show actionable blocking errors.
 
 ### Search, Filter, Sort
-- Every one of the 19 fields can be targeted by individual-field search.
+- Search updates letter-by-letter and uses case-insensitive contains matching across all 19 fields.
 - Default load order is `Current Zone` alphabetical.
 - Supported filters/sorts include `Current Area`, `New Zone`, `New Area`, `First Name`, `Last Name`, `Departure Time`, `Arrival Time`, `Second Leg?`, `2nd Departure Time`, and `2nd Arrival Time`.
 - Time fields sort in true chronological order using `HH:mm`.
+- Full View shows all 19 columns simultaneously; Compact mode exposes all columns via horizontal scroll.
 
 ### Detail Edit
-- User can open a person record, edit valid fields, save, and immediately see updated values.
+- User can open a person record, edit valid fields, apply, and immediately see updated values while remaining in detail view.
+- User can reach every detail field via vertical scroll while keeping `Apply`/`Cancel` visible in the right action panel.
 - All 19 labels are always shown; missing values display as `-`.
 - Invalid edits are blocked with field-level error guidance.
 
@@ -168,3 +176,8 @@ Navigation model:
 - Should the app support export/backups of the local dataset?
 - Is cloud synchronization required for multi-device usage?
 - Is edit history/audit trail required?
+
+
+## Implementation Note
+- Current implementation supports canonical headers and known sample-header aliases (for example `Transfer to Zone`, `Staying?`, `Departing Terminal`) which are normalized internally.
+- Dashboard search is global (no field dropdown), refresh is automatic, and the UI uses a built-in dark themed style.

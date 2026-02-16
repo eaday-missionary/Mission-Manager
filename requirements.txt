@@ -1,3 +1,5 @@
-# Install local package plus test tools
+# Install local package plus runtime and test tools
 -e .
 pytest>=8.0
+openpyxl>=3.1
+xlrd>=2.0
