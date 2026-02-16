@@ -50,6 +50,8 @@ class MissionManagerApp:
         notebook.pack(fill="both", expand=True)
 
         self.dashboard_view = DashboardView(notebook)
+        # Force default dashboard table mode on startup.
+        self.dashboard_view.set_view_mode("compact")
         self.detail_view = DetailView(notebook)
         self.data_view = DataManagementView(notebook)
 
@@ -104,6 +106,30 @@ class MissionManagerApp:
             "TButton",
             background=[("active", accent_hover), ("pressed", accent_hover), ("disabled", "#334155")],
             foreground=[("disabled", "#94A3B8")],
+        )
+        style.configure(
+            "Mode.TButton",
+            background=panel,
+            foreground=text,
+            padding=(10, 6),
+            bordercolor=border,
+        )
+        style.map(
+            "Mode.TButton",
+            background=[("active", "#2A3342"), ("pressed", "#2A3342")],
+            foreground=[("active", text), ("pressed", text)],
+        )
+        style.configure(
+            "ModeActive.TButton",
+            background=accent,
+            foreground="#FFFFFF",
+            padding=(10, 6),
+            bordercolor=accent,
+        )
+        style.map(
+            "ModeActive.TButton",
+            background=[("active", accent_hover), ("pressed", accent_hover)],
+            foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
         )
         style.configure(
             "TEntry",

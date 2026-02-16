@@ -97,11 +97,13 @@ Each journey uses this schema:
   1. Staff user lands on default `Current Zone` alphabetical list.
   2. Staff user filters by `New Zone` and `Current Area`.
   3. Staff user overrides sort to `Departure Time` (earliest-latest).
-  4. Staff user switches between `Full View` and `Compact` table modes based on task.
+  4. Staff user switches between `Full View` and `Expanded View` table modes based on task.
   5. Staff user reviews subset and optionally switches to `Last Name` (A-Z).
 - `System Response`:
   - Shows active filter chips/indicators.
   - Sort direction and active sort key remain visible.
+  - `Full View` / `Expanded View` controls remain visible at normal startup size and show active mode with selected styling.
+  - Clicking a mode button applies that exact mode immediately.
   - Result count updates with each change.
 - `Outcome`: Staff user obtains a stable, narrowed list matching operational needs.
 - `Failure Path`: Invalid filter combination returns no-results guidance with one-click clear.

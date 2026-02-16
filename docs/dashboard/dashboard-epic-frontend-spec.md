@@ -100,7 +100,9 @@ Navigation model:
 - `FR-038` Must show active sort/filter indicators clearly.
 - `FR-040` Must provide two dashboard table modes:
   - `Full View`: all 19 columns visible at once without horizontal scrolling.
-  - `Compact`: denser table with horizontal scrolling for full column access.
+  - `Expanded View`: denser table with horizontal scrolling for full column access.
+- `FR-043` Must keep `Full View` and `Expanded View` controls visible at the minimum supported app size (`1100x680`).
+- `FR-044` Must indicate active table mode using explicit active styling, not disabled-button state.
 
 ### Person Detail State
 - `FR-018` Must display all editable fields for one selected person.
@@ -151,7 +153,8 @@ Navigation model:
 - Default load order is `Current Zone` alphabetical.
 - Supported filters/sorts include `Current Area`, `New Zone`, `New Area`, `First Name`, `Last Name`, `Departure Time`, `Arrival Time`, `Second Leg?`, `2nd Departure Time`, and `2nd Arrival Time`.
 - Time fields sort in true chronological order using `HH:mm`.
-- Full View shows all 19 columns simultaneously; Compact mode exposes all columns via horizontal scroll.
+- Full View shows all 19 columns simultaneously; Expanded View exposes all columns via horizontal scroll.
+- Clicking `Full View` always applies full mode; clicking `Expanded View` always applies expanded mode.
 
 ### Detail Edit
 - User can open a person record, edit valid fields, apply, and immediately see updated values while remaining in detail view.

@@ -13,9 +13,11 @@ class DashboardView(ttk.Frame):
         super().__init__(master, padding=12)
         self.on_open_detail = None
         self.view_mode: str = "compact"
+        self.columnconfigure(0, weight=1)
+        self.rowconfigure(2, weight=1)
 
         controls = ttk.Frame(self)
-        controls.pack(fill="x", pady=(0, 8))
+        controls.grid(row=0, column=0, sticky="ew", pady=(0, 8))
 
         ttk.Label(controls, text="Search").grid(row=0, column=0, sticky="w")
         self.search_entry = ttk.Entry(controls, width=36)
@@ -37,7 +39,7 @@ class DashboardView(ttk.Frame):
         )
 
         filters = ttk.Frame(self)
-        filters.pack(fill="x", pady=(0, 8))
+        filters.grid(row=1, column=0, sticky="ew", pady=(0, 8))
         self.current_area = tk.StringVar(value="All")
         self.new_zone = tk.StringVar(value="All")
         self.new_area = tk.StringVar(value="All")
@@ -53,12 +55,10 @@ class DashboardView(ttk.Frame):
         )
 
         self.table_container = ttk.Frame(self)
-        self.table_container.pack(fill="both", expand=True)
+        self.table_container.grid(row=2, column=0, sticky="nsew")
 
         columns = PERSON_FIELDS
-        self.tree = ttk.Treeview(
-            self.table_container, columns=columns, show="headings", height=16
-        )
+        self.tree = ttk.Treeview(self.table_container, columns=columns, show="headings")
         for c in columns:
             self.tree.heading(c, text=FIELD_TO_HEADER.get(c, c))
             self.tree.column(c, width=120, anchor="w", minwidth=60, stretch=True)
@@ -79,18 +79,25 @@ class DashboardView(ttk.Frame):
         self.tree.bind("<Double-1>", lambda _e: self._handle_open_detail())
 
         bottom = ttk.Frame(self)
-        bottom.pack(fill="x", pady=(6, 0))
+        bottom.grid(row=3, column=0, sticky="ew", pady=(6, 0))
+        bottom.columnconfigure(0, weight=1)
 
         self.count_var = tk.StringVar(value="0 results")
-        ttk.Label(bottom, textvariable=self.count_var).pack(side="left")
+        ttk.Label(bottom, textvariable=self.count_var).grid(row=0, column=0, sticky="w")
 
         mode_buttons = ttk.Frame(bottom)
-        mode_buttons.pack(side="right")
+        mode_buttons.grid(row=0, column=1, sticky="e")
         self.full_btn = ttk.Button(
-            mode_buttons, text="Full View", command=lambda: self.set_view_mode("full")
+            mode_buttons,
+            text="Full View",
+            command=lambda: self.set_view_mode("full"),
+            style="Mode.TButton",
         )
         self.compact_btn = ttk.Button(
-            mode_buttons, text="Compact", command=lambda: self.set_view_mode("compact")
+            mode_buttons,
+            text="Expanded View",
+            command=lambda: self.set_view_mode("compact"),
+            style="Mode.TButton",
         )
         self.full_btn.pack(side="left", padx=(0, 8))
         self.compact_btn.pack(side="left")
@@ -192,13 +199,13 @@ class DashboardView(ttk.Frame):
         if self.view_mode == "full":
             self._set_full_widths()
             self.x_scroll.grid_remove()
-            self.full_btn.state(["disabled"])
-            self.compact_btn.state(["!disabled"])
+            self.full_btn.configure(style="ModeActive.TButton")
+            self.compact_btn.configure(style="Mode.TButton")
         else:
             self._set_compact_widths()
             self.x_scroll.grid()
-            self.full_btn.state(["!disabled"])
-            self.compact_btn.state(["disabled"])
+            self.full_btn.configure(style="Mode.TButton")
+            self.compact_btn.configure(style="ModeActive.TButton")
 
     def _set_compact_widths(self) -> None:
         widths = {
