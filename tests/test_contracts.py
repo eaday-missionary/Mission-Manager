@@ -9,8 +9,8 @@ def test_dashboard_contract_counts() -> None:
 
 def test_transfer_service_contract_methods_exist() -> None:
     required = [
+        "create_person",
         "create_schedule",
-        "fix_schedule",
         "get_schedule_document",
         "list_schedule_conflicts",
     ]

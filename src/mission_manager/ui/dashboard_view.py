@@ -12,8 +12,8 @@ class DashboardView(ttk.Frame):
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master, padding=12)
         self.on_open_detail = None
+        self.on_add_new = None
         self.on_create_schedule = None
-        self.on_fix_schedule = None
         self.view_mode: str = "compact"
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
@@ -38,6 +38,9 @@ class DashboardView(ttk.Frame):
 
         ttk.Button(controls, text="Open Selected", command=self._handle_open_detail).grid(
             row=1, column=2
+        )
+        ttk.Button(controls, text="Add New", command=self._handle_add_new).grid(
+            row=1, column=3, padx=(8, 0)
         )
 
         filters = ttk.Frame(self)
@@ -102,11 +105,6 @@ class DashboardView(ttk.Frame):
             schedule_buttons,
             text="Create Schedule",
             command=self._handle_create_schedule,
-        ).pack(side="left", padx=(0, 8))
-        ttk.Button(
-            schedule_buttons,
-            text="Fix Schedule",
-            command=self._handle_fix_schedule,
         ).pack(side="left")
 
         self.full_btn = ttk.Button(
@@ -156,13 +154,13 @@ class DashboardView(ttk.Frame):
             return
         self.on_open_detail(selected[0])
 
+    def _handle_add_new(self) -> None:
+        if self.on_add_new:
+            self.on_add_new()
+
     def _handle_create_schedule(self) -> None:
         if self.on_create_schedule:
             self.on_create_schedule()
-
-    def _handle_fix_schedule(self) -> None:
-        if self.on_fix_schedule:
-            self.on_fix_schedule()
 
     def selected_filters(self) -> dict[str, str]:
         return {

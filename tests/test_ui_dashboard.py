@@ -61,3 +61,22 @@ def test_dashboard_full_view_hides_horizontal_scroll_when_fit() -> None:
 
     assert view.x_scroll.winfo_ismapped() == 0
     root.destroy()
+
+
+def test_dashboard_add_new_callback_invoked() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = DashboardView(root)
+    calls = {"count": 0}
+
+    def _mark() -> None:
+        calls["count"] += 1
+
+    view.on_add_new = _mark
+    view._handle_add_new()
+    assert calls["count"] == 1
+    root.destroy()

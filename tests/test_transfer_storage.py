@@ -97,7 +97,7 @@ def test_transfer_storage_schedule_version_increments(tmp_path: Path) -> None:
         meta = repo.replace_transfer_schedule(
             blocks=[block],
             conflicts=[],
-            generated_by_operation="fix",
+            generated_by_operation="create",
             source_dataset_version=1,
             source_dataset_last_imported_at=None,
             source_max_person_updated_at=person.updated_at,

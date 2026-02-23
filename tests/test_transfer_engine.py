@@ -1,7 +1,6 @@
 from mission_manager.models import PersonRecord
 from mission_manager.transfer_engine import (
     render_transfer_schedule,
-    resolve_dependency_ids,
     split_companion_names,
 )
 
@@ -118,17 +117,6 @@ def test_render_transfer_schedule_missing_companion_produces_data_conflict() -> 
     result = render_transfer_schedule(people)
     assert result.errors
     assert any(error.code == "DATA_CONFLICT" for error in result.errors)
-
-
-def test_dependency_resolution_expands_linked_people() -> None:
-    people = [
-        _person(pid="1", first="A", last="One", current_companion="B Two"),
-        _person(pid="2", first="B", last="Two", current_companion="A One", new_companion="C Three"),
-        _person(pid="3", first="C", last="Three", current_companion="D Four"),
-        _person(pid="4", first="D", last="Four", current_companion="C Three"),
-    ]
-    affected = resolve_dependency_ids(people, {"2"})
-    assert {"1", "2", "3", "4"}.issubset(affected)
 
 
 def test_split_companion_names_supports_ampersand_and_comma() -> None:

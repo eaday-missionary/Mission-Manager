@@ -74,6 +74,7 @@ Navigation model:
 - `FR-006` Must allow selecting one record to open detailed view.
 - `FR-007` Must allow editing a record in a dedicated detail form (panel/page/modal).
 - `FR-008` Must provide explicit Apply and Cancel actions for edits.
+- `FR-046` Must provide `Add New` action in dashboard controls to create a person row without importing a file.
 - `FR-009` Must support append import that adds records to the existing dataset.
 - `FR-010` Must support full dataset reset/replace behind confirmation safeguards.
 - `UX-001` Must preserve user context (search/filter/sort/page position) when returning from detail view.
@@ -89,6 +90,7 @@ Navigation model:
 - `FR-012` Must display accepted file types and basic formatting guidance.
 - `FR-013` Must provide immediate error messaging for unsupported file type or unreadable file.
 - `FR-035` Must show schema-mismatch messaging when required columns are missing or invalid.
+- `FR-047` Must provide `Add New` action in onboarding/no-data state so users can begin with manual entry.
 
 ### Main Dashboard State
 - `FR-014` Must display records in a scannable list/table with stable columns.
@@ -108,10 +110,13 @@ Navigation model:
 ### Person Detail State
 - `FR-018` Must display all editable fields for one selected person.
 - `FR-019` Must validate required fields before apply and show inline errors.
-- `FR-020` Must show inline success feedback after apply, persist changes locally, and keep the user in Person Detail view.
+- `FR-020` Must show inline success feedback after apply, persist changes locally, and return to the previously active tab (`Dashboard` or `Transfer Editor`).
 - `FR-039` Must show all 19 data labels with `-` where a value is missing.
 - `FR-041` Must provide vertical scrolling in Person Detail so all fields are reachable at smaller window sizes.
 - `FR-042` Must place `Apply` and `Cancel` in a fixed right-side action panel that remains visible while fields scroll.
+- `FR-048` Must show `Add` (not `Apply`) when entering Person Detail without a selected person.
+- `FR-049` Must support blank-field add mode in Person Detail with the same validation and normalization rules as edit apply mode.
+- `FR-050` Must return to Dashboard and select the new row after successful add.
 
 ### Data Management State
 - `FR-021` Must show current dataset status (loaded timestamp, approximate count).
@@ -158,10 +163,12 @@ Navigation model:
 - Clicking `Full View` always applies full mode; clicking `Expanded View` always applies expanded mode.
 
 ### Detail Edit
-- User can open a person record, edit valid fields, apply, and immediately see updated values while remaining in detail view.
+- User can open a person record, edit valid fields, apply, and immediately return to the previous tab context with updated data.
 - User can reach every detail field via vertical scroll while keeping `Apply`/`Cancel` visible in the right action panel.
 - All 19 labels are always shown; missing values display as `-`.
 - Invalid edits are blocked with field-level error guidance.
+- User can enter add mode with blank fields and click `Add` to create a new person without importing a spreadsheet.
+- Successful add navigates to Dashboard and selects the newly created row.
 
 ### Local Persistence
 - Closing/reopening the app reloads latest valid data and previous session can continue.

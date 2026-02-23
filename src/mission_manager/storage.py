@@ -354,6 +354,20 @@ class StorageRepository:
             conn.commit()
         return self.get_person(person_id)
 
+    def create_person(self, rec: dict[str, Any]) -> PersonRecord:
+        row = dict(rec)
+        row["id"] = row.get("id") or str(uuid4())
+        with self._connect() as conn:
+            conn.execute("BEGIN")
+            self._insert_person(conn, row)
+            count = conn.execute("SELECT COUNT(*) as c FROM people").fetchone()["c"]
+            self._set_meta(conn, record_count=str(count), schema_version=str(SCHEMA_VERSION))
+            conn.commit()
+        created = self.get_person(row["id"])
+        if created is None:
+            raise RuntimeError("Created person record could not be loaded.")
+        return created
+
     def clear_dataset(self) -> None:
         with self._connect() as conn:
             conn.execute("DELETE FROM people")
@@ -363,16 +377,6 @@ class StorageRepository:
             self._set_meta(conn, last_imported_at="", record_count="0", source_file_name="", schema_version=str(SCHEMA_VERSION))
             self._record_history(conn, "clear", "", 0, 0, 0, 0, True)
             conn.commit()
-
-    def get_people_updated_since(self, since_updated_at: str | None) -> list[PersonRecord]:
-        if not since_updated_at:
-            return self.list_people()
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM people WHERE updated_at > ? ORDER BY updated_at ASC, id ASC",
-                (since_updated_at,),
-            ).fetchall()
-        return [self._row_to_person(r) for r in rows]
 
     def _next_schedule_version(self, conn: sqlite3.Connection) -> int:
         row = conn.execute(

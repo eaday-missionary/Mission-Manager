@@ -8,3 +8,8 @@ Dashboard epic project requirements:
 -- The project needs to be efficient and use fast sorting algorithms, efficient for sorting all the information of 100 to 150 people.
 -- Once the information is input into the project, it will automatically save locally on the device so that the user does not have to input the excel spreadsheet every single time. There should also be features that allow the user to erase all data and add a new spreadsheet, or to add onto the existing data.
 -- The user will be able to view each person individually, sort the people displayed with filters, and see and be able to edit each individual's information by clicking on them.
+-- The dashboard must also support adding a person from scratch without importing a spreadsheet by using an `Add New` action from the dashboard and no-data onboarding state.
+-- The `Person Detail` view must support dual mode behavior:
+--- `Add` mode with blank fields when no person is selected.
+--- `Apply` mode when an existing person is opened for editing.
+--- Successful `Apply` must return users to the previously active tab (`Dashboard` or `Transfer Editor`).

@@ -145,15 +145,3 @@ class ScheduleBuildResult:
     conflicts_found: int = 0
     errors: list[ScheduleError] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-
-
-@dataclass
-class ScheduleFixResult:
-    success: bool
-    schedule_version: int | None = None
-    generated_at: str | None = None
-    blocks_rebuilt: int = 0
-    people_rebuilt: int = 0
-    conflicts_found: int = 0
-    errors: list[ScheduleError] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)

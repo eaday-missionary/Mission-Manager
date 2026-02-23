@@ -12,8 +12,10 @@ class DetailView(ttk.Frame):
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master, padding=12)
         self.on_apply = None
+        self.on_add = None
         self.on_cancel = None
         self.current_person_id = None
+        self._mode: str = "add"
 
         self.entries: dict[str, ttk.Entry] = {}
 
@@ -65,7 +67,8 @@ class DetailView(ttk.Frame):
         action_frame.grid(row=0, column=1, sticky="ns")
         action_frame.columnconfigure(0, weight=1)
 
-        ttk.Button(action_frame, text="Apply", command=self._apply).grid(
+        self.primary_btn = ttk.Button(action_frame, text="Add", command=self._submit)
+        self.primary_btn.grid(
             row=0, column=0, sticky="ew", pady=(0, 8)
         )
         ttk.Button(action_frame, text="Cancel", command=self._cancel).grid(
@@ -86,9 +89,24 @@ class DetailView(ttk.Frame):
 
         self._bind_scroll_events_recursive(self.canvas)
         self._bind_scroll_events_recursive(self.form_frame)
+        self.enter_add_mode()
 
     def load_person(self, person) -> None:
+        self.enter_edit_mode(person)
+
+    def enter_add_mode(self) -> None:
+        self._mode = "add"
+        self.current_person_id = None
+        self.primary_btn.configure(text="Add")
+        for entry in self.entries.values():
+            entry.delete(0, "end")
+        self.error_var.set("")
+        self.success_var.set("")
+
+    def enter_edit_mode(self, person) -> None:
+        self._mode = "edit"
         self.current_person_id = person.id
+        self.primary_btn.configure(text="Apply")
         for field, entry in self.entries.items():
             value = getattr(person, field)
             if field in ("staying", "second_leg"):
@@ -105,14 +123,22 @@ class DetailView(ttk.Frame):
         self.error_var.set("")
         self.success_var.set("")
 
-    def _apply(self) -> None:
+    def _submit(self) -> None:
+        patch = self._build_patch()
+        if self._mode == "add":
+            if self.on_add:
+                self.on_add(patch)
+            return
         if not self.on_apply or not self.current_person_id:
             return
+        self.on_apply(self.current_person_id, patch)
+
+    def _build_patch(self) -> dict[str, str]:
         patch = {}
         for field, entry in self.entries.items():
             val = entry.get().strip()
             patch[field] = "" if val == "-" else val
-        self.on_apply(self.current_person_id, patch)
+        return patch
 
     def _cancel(self) -> None:
         if self.on_cancel:

@@ -102,6 +102,7 @@ Required service contracts:
 - `replace_excel(file_path) -> ReplaceResult`
 - `list_people(filters, sort, search) -> list[PersonRecord]`
 - `get_person(person_id) -> PersonRecord`
+- `create_person(patch) -> PersonRecord`
 - `update_person(person_id, patch) -> PersonRecord`
 - `load_local_dataset() -> DatasetState`
 - `clear_dataset() -> None`
@@ -198,7 +199,14 @@ Boolean fields:
 - Re-validate changed fields.
 - Re-apply boolean/time normalization for updated fields.
 - UI `Apply` action triggers this `update_person(person_id, patch)` path and persists immediately.
-- Detail-form scrolling and right-side action panel layout do not change backend edit contracts.
+- UI post-apply navigation (returning to previously active tab) does not change backend edit contracts.
+
+### Manual Create
+- Create path must accept person payload without prior Excel import.
+- Uses same normalization and validation rules as edit path (`first_name` and `last_name` required; time/boolean normalization identical).
+- Inserts one new row in `people` with generated UUID and timestamps.
+- Updates `dataset_meta.record_count`.
+- Does not overwrite import metadata fields (`last_imported_at`, `source_file_name`) during manual create.
 
 ## Query Support for Frontend Requirements
 Required query behavior:
@@ -324,6 +332,10 @@ Those variants are now accepted through alias mapping and normalized to canonica
 10. Edit behavior:
 - Valid edit persists.
 - Invalid time/boolean edit returns field-level validation error.
+
+11. Manual create behavior:
+- Valid create persists one new row and increments record count metadata.
+- Missing required names or invalid time values return field-level validation errors.
 
 ## Assumptions and Defaults
 - Backend remains Python-based.

@@ -87,3 +87,23 @@ def test_storage_global_search_contains_and_boolean_text(tmp_path: Path) -> None
     by_boolean_text = repo.list_people(search_query="yes")
     assert len(by_boolean_text) == 1
     assert by_boolean_text[0].first_name == "Clara"
+
+
+def test_storage_create_person_updates_record_count(tmp_path: Path) -> None:
+    repo = StorageRepository(tmp_path / "test.sqlite3")
+    created = repo.create_person(
+        {
+            "first_name": "Nina",
+            "last_name": "Park",
+            "current_zone": "West",
+            "current_area": "Area 5",
+            "staying": True,
+            "second_leg": False,
+            "departure_time": "09:00",
+            "arrival_time": "10:30",
+        }
+    )
+    assert created.first_name == "Nina"
+    assert created.last_name == "Park"
+    state = repo.dataset_state()
+    assert state.record_count == 1

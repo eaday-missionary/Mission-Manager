@@ -121,7 +121,7 @@ Each journey uses this schema:
   - Shows `-` for any missing values while preserving labels.
   - Validates required fields.
   - Shows inline errors for invalid values.
-  - On success, confirms apply inline, persists locally, refreshes list data, and keeps the user in detail view.
+  - On success, confirms apply inline, persists locally, refreshes list data, and returns to the previously active tab.
 - `Outcome`: Updated values appear in detail and list views.
 - `Failure Path`: Validation errors block apply; user can fix and retry or cancel.
 
@@ -196,6 +196,47 @@ Each journey uses this schema:
 - `Outcome`: Destructive actions occur only with explicit user intent.
 - `Failure Path`: Any operation failure is surfaced with clear recovery actions.
 
+## Journey 11: Add New Person from Onboarding (No Dataset Yet)
+- `JRNY-011 Goal`: Start data entry without importing Excel.
+- `Preconditions`: No local dataset exists or dataset was cleared.
+- `Steps`:
+  1. Staff user opens app and sees onboarding/import screen.
+  2. Staff user clicks `Add New`.
+  3. App opens Person Detail in add mode with blank fields and `Add` button.
+  4. Staff user enters required data and clicks `Add`.
+- `System Response`:
+  - Opens main tabs and selects Person Detail.
+  - Applies the same validation/normalization rules as edit apply flow.
+  - Persists new person and refreshes dashboard list.
+  - Returns to Dashboard and selects the new row.
+- `Outcome`: User can bootstrap dataset manually without spreadsheet import.
+- `Failure Path`: Validation errors remain inline in Person Detail and block add until corrected.
+
+## Journey 12: Add New Person from Dashboard
+- `JRNY-012 Goal`: Insert a new person row while already working in dashboard list.
+- `Preconditions`: Main dashboard is open.
+- `Steps`:
+  1. Staff user clicks `Add New` near `Open Selected`.
+  2. Person Detail opens in add mode (`Add` visible, blank fields).
+  3. Staff user submits new record.
+- `System Response`:
+  - Uses add mode with same validation rules as apply mode.
+  - On success, navigates to Dashboard and selects inserted row.
+- `Outcome`: New record is immediately visible and selectable in list.
+- `Failure Path`: Invalid entry values produce actionable inline errors.
+
+## Journey 13: Enter Person Detail Tab Without Selection
+- `JRNY-013 Goal`: Ensure direct tab navigation works safely without requiring prior row selection.
+- `Preconditions`: User navigates to Person Detail with no active selected person.
+- `Steps`:
+  1. Staff user clicks `Person Detail` tab directly.
+  2. User observes primary action button state.
+- `System Response`:
+  - Person Detail defaults to blank add mode.
+  - Primary action is `Add` (not `Apply`).
+- `Outcome`: User can start creating a new row immediately.
+- `Failure Path`: If save fails, inline error messaging remains in add mode for retry.
+
 ## Cross-Journey UX Rules
 - `UX-009` Must use consistent loading, success, and error feedback patterns.
 - `UX-010` Must use consistent confirmation language for destructive actions.
@@ -216,6 +257,7 @@ Each journey uses this schema:
 - [ ] Alternate sort/filter behavior is documented for all requested fields.
 - [ ] Search/filter/sort journeys define user-visible performance expectations.
 - [ ] Edit journey includes validation and apply/cancel outcomes.
+- [ ] Manual add journeys cover onboarding add path, dashboard add path, and no-selection detail-tab behavior.
 - [ ] Append and replace journeys clearly separate non-destructive vs destructive behavior.
 - [ ] Error-handling journeys define actionable recovery steps.
 

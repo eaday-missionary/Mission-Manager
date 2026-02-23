@@ -35,3 +35,39 @@ def test_detail_view_entry_binds_mouse_wheel_scroll_events(monkeypatch) -> None:
     assert calls == [(1, "units")]
 
     root.destroy()
+
+
+def test_detail_view_switches_between_add_and_apply_modes() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = DetailView(root)
+    add_calls = {"count": 0}
+    apply_calls = {"count": 0}
+
+    def _on_add(_patch: dict[str, str]) -> None:
+        add_calls["count"] += 1
+
+    def _on_apply(_person_id: str, _patch: dict[str, str]) -> None:
+        apply_calls["count"] += 1
+
+    view.on_add = _on_add
+    view.on_apply = _on_apply
+
+    view.enter_add_mode()
+    assert view.primary_btn.cget("text") == "Add"
+    view._submit()
+    assert add_calls["count"] == 1
+    assert apply_calls["count"] == 0
+
+    person = SimpleNamespace(id="person-1", **{field: None for field in view.entries})
+    person.first_name = "Jane"
+    person.last_name = "Smith"
+    view.enter_edit_mode(person)
+    assert view.primary_btn.cget("text") == "Apply"
+    view._submit()
+    assert apply_calls["count"] == 1
+    root.destroy()

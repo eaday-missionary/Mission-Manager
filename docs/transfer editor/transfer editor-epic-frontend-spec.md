@@ -7,7 +7,7 @@ In scope:
 - Transfer Editor tab/page navigation.
 - Rendering generated schedule text from backend output.
 - Conflict highlighting and right-panel conflict messaging.
-- User interactions for `Create Schedule` and `Fix Schedule`.
+- User interactions for `Create Schedule`.
 - Frontend error/loading/empty states and accessibility behavior.
 
 Out of scope:
@@ -22,19 +22,19 @@ Primary views and entry points:
 
 Navigation/ownership rules:
 - Users access transfer editor via the top tab row.
-- `Create Schedule` and `Fix Schedule` controls are initiated from Dashboard context but update Transfer Editor content.
-- Transfer Editor remains read-focused; corrections are made in dashboard data and then synchronized by `Fix Schedule` or `Create Schedule`.
+- `Create Schedule` is initiated from Dashboard context and updates Transfer Editor content.
+- Transfer Editor remains read-focused; corrections are made in dashboard data and then synchronized by rerunning `Create Schedule`.
 
 ## UI Layout Contract
 Transfer Editor page is two-pane:
-- Left pane: scrollable schedule document (`ScheduleBlock` list in render order).
+- Left pane: scrollable schedule card list (`ScheduleBlock` list in render order).
 - Right pane: conflict panel showing conflict entries anchored to affected schedule blocks.
 
 Required layout behavior:
-- `FR-001` Left pane must support vertical scrolling across complete generated schedule output.
+- `FR-001` Left pane must support vertical scrolling across complete generated schedule-card output.
 - `FR-002` Right pane must remain visible while left pane scrolls.
 - `FR-033` A transfer-editor search bar must be shown above the two panes for schedule-text lookup.
-- `FR-003` Each schedule block must render as plain text preserving line breaks and separator line `-----------------------------------`.
+- `FR-003` Each schedule block must render inside a boxed card preserving line breaks and separator line `-----------------------------------`.
 - `FR-004` Right pane entries must only include conflicts that affect currently loaded schedule blocks.
 - `FR-005` Empty conflict state must display a positive no-conflict message instead of blank panel.
 - `FR-031` Transfer editor text and conflict panel surfaces must use dark backgrounds with white-readable text.
@@ -57,16 +57,17 @@ Required layout behavior:
 - `FR-014` Canceling confirmation must leave current transfer editor schedule unchanged.
 - `FR-015` Confirming must refresh transfer editor document and conflict panel from latest backend schedule version.
 
-### Fix Schedule
-- `FR-016` Dashboard `Fix Schedule` action must trigger backend delta update and refresh transfer editor content.
-- `FR-017` Fix flow must preserve scroll position where possible; if affected block moved, focus nearest updated block.
-- `FR-018` Fix result message must indicate whether blocks were rebuilt (`n`) or no changes were detected.
+### Regenerate Schedule After Edits
+- `FR-016` After editing source data in Dashboard/Person Detail, users rerun `Create Schedule` to refresh transfer editor content.
+- `FR-017` Refresh flow should preserve scroll position where possible; if affected block moved, focus nearest matching block.
 
 ### Transfer Editor Read/Review Interaction
 - `FR-019` Clicking a conflict entry in right panel must scroll/jump to associated schedule block anchor.
 - `FR-020` Clicking highlighted text should set corresponding right-panel conflict entry as active.
 - `FR-021` Active conflict selection must have distinct visual emphasis in both panes.
 - `FR-022` Transfer editor content must render UTF-8 safely and preserve Hangul text.
+- `FR-040` Double-clicking a schedule card must open the matching person in `Person Detail`.
+- `FR-041` Schedule cards in transfer editor must remain read-only; data editing happens in `Person Detail`.
 - `FR-034` Search must execute as user types (character-by-character) using case-insensitive contains matching on schedule text.
 - `FR-035` When query contains matches, transfer editor must auto-scroll to the first match and mark it active.
 - `FR-036` Search must support Up/Down keyboard navigation through matches with wrap-around.
@@ -79,9 +80,10 @@ Required layout behavior:
 ## Functional Requirements
 - `FR-023` Transfer editor must render schedule blocks in backend-provided deterministic order.
 - `FR-024` Zone headers and companionship adjacency in output must be preserved in final rendered document.
-- `FR-025` Document refresh after create/fix must be atomic from user perspective (no mixed old/new blocks).
-- `FR-026` System must show loading state while schedule build/fix fetch is in progress.
-- `FR-027` System must show actionable error banners for build/fix/read failures.
+- `FR-042` Zone headers must remain visible above grouped schedule cards in rendered order.
+- `FR-025` Document refresh after create must be atomic from user perspective (no mixed old/new blocks).
+- `FR-026` System must show loading state while schedule build fetch is in progress.
+- `FR-027` System must show actionable error banners for build/read failures.
 - `FR-028` Right-panel conflict list must include:
   - Person display name(s)
   - Conflict type (time/location/data)
@@ -91,8 +93,8 @@ Required layout behavior:
 - `FR-030` If no schedule exists yet, transfer editor must show empty-state guidance to run `Create Schedule`.
 
 ## Interaction and Feedback Standards
-- `UX-001` Loading indicators must appear for create/fix and initial transfer editor load.
-- `UX-002` Success notifications must confirm create/fix completion and conflict totals.
+- `UX-001` Loading indicators must appear for create and initial transfer editor load.
+- `UX-002` Success notifications must confirm create completion and conflict totals.
 - `UX-003` Error messages must include what failed and next step (retry, check dashboard data, or open data management).
 - `UX-004` Destructive or overwriting actions must require explicit confirmation.
 - `UX-005` Right panel must avoid dead-end error states; each critical issue includes recovery instruction.
@@ -101,10 +103,10 @@ Required layout behavior:
 ## Accessibility and Usability Requirements
 - `ACC-001` Keyboard navigation must support:
   - Tab traversal between controls and panes.
-  - Enter/Space activation for create/fix and conflict selection.
+  - Enter/Space activation for create and conflict selection.
   - Up/Down search result traversal when focus is in transfer search bar.
   - `Ctrl+F` shortcut focus for transfer search when Transfer Editor tab is active.
-- `ACC-002` Focus must be managed after create/fix completion (focus returned to primary transfer editor region).
+- `ACC-002` Focus must be managed after create completion (focus returned to primary transfer editor region).
 - `ACC-003` Highlight colors must meet readable contrast requirements with text/background.
 - `ACC-004` Conflict state must not rely on color alone; include icon/label text such as `Time Conflict` and `Location Conflict`.
 - `ACC-005` Scroll-jump operations must announce context change for assistive technologies when supported.
@@ -118,10 +120,11 @@ Required layout behavior:
 ## Acceptance Criteria
 
 ### Schedule Display
-- Transfer editor shows generated schedule document in a scrollable left pane.
-- Block separators and line formatting are preserved exactly as generated.
+- Transfer editor shows generated schedule cards in a scrollable left pane.
+- Block separators and line formatting are preserved exactly as generated inside each card.
 - Zone grouping and companion adjacency are visible in rendered order.
 - Transfer editor surfaces remain dark-themed with readable white text and consistent scrollbar styling.
+- Double-clicking a card opens that person in Person Detail.
 
 ### Conflict Visibility
 - Time conflicts are red inline + red in right panel.
@@ -129,11 +132,10 @@ Required layout behavior:
 - Conflict entries map correctly to highlighted schedule segments.
 - Right panel only shows messages for affected schedule blocks.
 
-### Create/Fix Workflows
+### Create Workflow
 - `Create Schedule` always prompts exact required warning text before overwrite.
 - Canceling create does not change existing schedule.
 - Confirmed create refreshes schedule and conflict panel to latest version.
-- `Fix Schedule` updates transfer editor content and reports changed vs unchanged results.
 
 ### States and Errors
 - Empty state instructs user to run `Create Schedule`.
@@ -166,8 +168,8 @@ Required layout behavior:
 6. No-conflict rendering:
 - No conflicts returns explicit success/no-conflict panel text.
 
-7. Fix schedule delta refresh:
-- Updated blocks reflect backend changes; unaffected blocks remain visually stable.
+7. Recreate schedule after edits:
+- After source edits, rerunning `Create Schedule` refreshes transfer content using current data.
 
 8. Large list responsiveness:
 - 100-150 blocks remain scrollable and responsive at target thresholds.
@@ -183,6 +185,10 @@ Required layout behavior:
 - Up/Down cycles through matches and wraps from end to start and start to end.
 - `Ctrl+F` focuses search entry only while Transfer Editor tab is active.
 - Overlapping conflict spans still show search highlight colors for matched text.
+
+12. Card interaction:
+- Schedule renders as one boxed card per person block with zone headers retained.
+- Double-clicking a card opens that person in Person Detail.
 
 ## Assumptions and Defaults
 - Transfer editor schedule content is backend-authored; frontend does not re-interpret pseudo-code logic.
