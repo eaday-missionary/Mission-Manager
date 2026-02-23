@@ -36,7 +36,10 @@ class DetailView(ttk.Frame):
         self.canvas = tk.Canvas(content_frame, highlightthickness=0, borderwidth=0)
         self.canvas.grid(row=0, column=0, sticky="nsew")
         self.scrollbar = ttk.Scrollbar(
-            content_frame, orient="vertical", command=self.canvas.yview
+            content_frame,
+            orient="vertical",
+            command=self.canvas.yview,
+            style="App.Vertical.TScrollbar",
         )
         self.scrollbar.grid(row=0, column=1, sticky="ns")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)

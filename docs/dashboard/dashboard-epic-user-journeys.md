@@ -103,6 +103,7 @@ Each journey uses this schema:
   - Shows active filter chips/indicators.
   - Sort direction and active sort key remain visible.
   - `Full View` / `Expanded View` controls remain visible at normal startup size and show active mode with selected styling.
+  - `Full View` auto-fits columns first and uses horizontal-scroll fallback when viewport width is constrained.
   - Clicking a mode button applies that exact mode immediately.
   - Result count updates with each change.
 - `Outcome`: Staff user obtains a stable, narrowed list matching operational needs.

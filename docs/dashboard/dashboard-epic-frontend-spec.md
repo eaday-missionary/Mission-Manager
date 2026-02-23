@@ -99,10 +99,11 @@ Navigation model:
 - `FR-037` Must refresh list results automatically as users type, sort, or change filters (no manual refresh action).
 - `FR-038` Must show active sort/filter indicators clearly.
 - `FR-040` Must provide two dashboard table modes:
-  - `Full View`: all 19 columns visible at once without horizontal scrolling.
+  - `Full View`: auto-fit all 19 columns into available width when possible; if viewport is constrained, show horizontal-scroll fallback so all columns remain accessible.
   - `Expanded View`: denser table with horizontal scrolling for full column access.
 - `FR-043` Must keep `Full View` and `Expanded View` controls visible at the minimum supported app size (`1100x680`).
 - `FR-044` Must indicate active table mode using explicit active styling, not disabled-button state.
+- `FR-045` Must apply consistent, sleek solid scrollbar styling across dashboard table and detail scrolling surfaces.
 
 ### Person Detail State
 - `FR-018` Must display all editable fields for one selected person.
@@ -153,7 +154,7 @@ Navigation model:
 - Default load order is `Current Zone` alphabetical.
 - Supported filters/sorts include `Current Area`, `New Zone`, `New Area`, `First Name`, `Last Name`, `Departure Time`, `Arrival Time`, `Second Leg?`, `2nd Departure Time`, and `2nd Arrival Time`.
 - Time fields sort in true chronological order using `HH:mm`.
-- Full View shows all 19 columns simultaneously; Expanded View exposes all columns via horizontal scroll.
+- Full View prioritizes showing all 19 columns simultaneously and falls back to horizontal scrolling when the window is constrained; Expanded View exposes all columns via horizontal scroll.
 - Clicking `Full View` always applies full mode; clicking `Expanded View` always applies expanded mode.
 
 ### Detail Edit
@@ -183,4 +184,4 @@ Navigation model:
 
 ## Implementation Note
 - Current implementation supports canonical headers and known sample-header aliases (for example `Transfer to Zone`, `Staying?`, `Departing Terminal`) which are normalized internally.
-- Dashboard search is global (no field dropdown), refresh is automatic, and the UI uses a built-in dark themed style.
+- Dashboard search is global (no field dropdown), refresh is automatic, the UI uses a built-in dark themed style, and scrollbars use a consistent solid dark visual treatment.

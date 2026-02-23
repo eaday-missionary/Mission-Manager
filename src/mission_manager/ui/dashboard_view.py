@@ -12,6 +12,8 @@ class DashboardView(ttk.Frame):
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master, padding=12)
         self.on_open_detail = None
+        self.on_create_schedule = None
+        self.on_fix_schedule = None
         self.view_mode: str = "compact"
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
@@ -64,10 +66,16 @@ class DashboardView(ttk.Frame):
             self.tree.column(c, width=120, anchor="w", minwidth=60, stretch=True)
 
         self.y_scroll = ttk.Scrollbar(
-            self.table_container, orient="vertical", command=self.tree.yview
+            self.table_container,
+            orient="vertical",
+            command=self.tree.yview,
+            style="App.Vertical.TScrollbar",
         )
         self.x_scroll = ttk.Scrollbar(
-            self.table_container, orient="horizontal", command=self.tree.xview
+            self.table_container,
+            orient="horizontal",
+            command=self.tree.xview,
+            style="App.Horizontal.TScrollbar",
         )
         self.tree.configure(yscrollcommand=self.y_scroll.set, xscrollcommand=self.x_scroll.set)
 
@@ -87,6 +95,20 @@ class DashboardView(ttk.Frame):
 
         mode_buttons = ttk.Frame(bottom)
         mode_buttons.grid(row=0, column=1, sticky="e")
+
+        schedule_buttons = ttk.Frame(bottom)
+        schedule_buttons.grid(row=0, column=2, sticky="e", padx=(12, 0))
+        ttk.Button(
+            schedule_buttons,
+            text="Create Schedule",
+            command=self._handle_create_schedule,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            schedule_buttons,
+            text="Fix Schedule",
+            command=self._handle_fix_schedule,
+        ).pack(side="left")
+
         self.full_btn = ttk.Button(
             mode_buttons,
             text="Full View",
@@ -133,6 +155,14 @@ class DashboardView(ttk.Frame):
         if not selected:
             return
         self.on_open_detail(selected[0])
+
+    def _handle_create_schedule(self) -> None:
+        if self.on_create_schedule:
+            self.on_create_schedule()
+
+    def _handle_fix_schedule(self) -> None:
+        if self.on_fix_schedule:
+            self.on_fix_schedule()
 
     def selected_filters(self) -> dict[str, str]:
         return {
@@ -197,8 +227,11 @@ class DashboardView(ttk.Frame):
 
     def _apply_table_mode(self) -> None:
         if self.view_mode == "full":
-            self._set_full_widths()
-            self.x_scroll.grid_remove()
+            overflow = self._set_full_widths()
+            if overflow:
+                self.x_scroll.grid()
+            else:
+                self.x_scroll.grid_remove()
             self.full_btn.configure(style="ModeActive.TButton")
             self.compact_btn.configure(style="Mode.TButton")
         else:
@@ -234,8 +267,16 @@ class DashboardView(ttk.Frame):
                 field, width=widths.get(field, 120), minwidth=70, stretch=False
             )
 
-    def _set_full_widths(self) -> None:
-        available = max(self.table_container.winfo_width() - 16, 1140)
-        width = max(70, available // len(PERSON_FIELDS))
+    def _set_full_widths(self) -> bool:
+        # Fit all columns to available width when possible; fall back to x-scroll when constrained.
+        available = max(self.table_container.winfo_width() - 16, 1)
+        min_width = 56
+        target_width = max(min_width, available // len(PERSON_FIELDS))
+        total_width = target_width * len(PERSON_FIELDS)
+        overflow = total_width > available
+
         for field in PERSON_FIELDS:
-            self.tree.column(field, width=width, minwidth=60, stretch=True)
+            self.tree.column(
+                field, width=target_width, minwidth=min_width, stretch=False
+            )
+        return overflow

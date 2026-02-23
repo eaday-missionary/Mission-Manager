@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import sqlite3
+import json
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,7 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 from .constants import APP_NAME, DEFAULT_SORT_DIR, DEFAULT_SORT_FIELD, FILTER_FIELDS, PERSON_FIELDS, SCHEMA_VERSION
-from .models import DatasetState, PersonRecord
+from .models import ConflictAnchor, DatasetState, PersonRecord, ScheduleBlock, ScheduleConflict, ScheduleMetadata
 
 
 def utc_now() -> str:
@@ -105,6 +106,41 @@ class StorageRepository:
                 success INTEGER NOT NULL,
                 notes TEXT
             );
+            CREATE TABLE IF NOT EXISTS transfer_schedule_blocks (
+                block_id TEXT PRIMARY KEY,
+                schedule_version INTEGER NOT NULL,
+                person_id TEXT NOT NULL,
+                person_display_name TEXT NOT NULL,
+                current_zone TEXT,
+                starting_companionship_key TEXT NOT NULL,
+                render_order INTEGER NOT NULL,
+                raw_text TEXT NOT NULL,
+                source_person_updated_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS transfer_schedule_conflicts (
+                conflict_id TEXT PRIMARY KEY,
+                schedule_version INTEGER NOT NULL,
+                conflict_type TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                message TEXT NOT NULL,
+                affected_people_json TEXT NOT NULL,
+                affected_locations_json TEXT NOT NULL,
+                anchors_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS transfer_schedule_meta (
+                schedule_version INTEGER PRIMARY KEY,
+                generated_at TEXT NOT NULL,
+                generated_by_operation TEXT NOT NULL,
+                source_dataset_version INTEGER NOT NULL,
+                source_dataset_last_imported_at TEXT,
+                source_max_person_updated_at TEXT,
+                pseudo_code_version_ref TEXT NOT NULL,
+                block_count INTEGER NOT NULL,
+                conflict_count INTEGER NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_people_current_zone ON people(current_zone);
             CREATE INDEX IF NOT EXISTS idx_people_current_area ON people(current_area);
             CREATE INDEX IF NOT EXISTS idx_people_new_zone ON people(new_zone);
@@ -116,6 +152,9 @@ class StorageRepository:
             CREATE INDEX IF NOT EXISTS idx_people_second_leg ON people(second_leg);
             CREATE INDEX IF NOT EXISTS idx_people_second_departure_time ON people(second_departure_time);
             CREATE INDEX IF NOT EXISTS idx_people_second_arrival_time ON people(second_arrival_time);
+            CREATE INDEX IF NOT EXISTS idx_transfer_blocks_schedule_order ON transfer_schedule_blocks(schedule_version, render_order);
+            CREATE INDEX IF NOT EXISTS idx_transfer_blocks_person_schedule ON transfer_schedule_blocks(person_id, schedule_version);
+            CREATE INDEX IF NOT EXISTS idx_transfer_conflicts_schedule_type ON transfer_schedule_conflicts(schedule_version, conflict_type, severity);
             """
         )
         for key, value in {
@@ -318,6 +357,234 @@ class StorageRepository:
     def clear_dataset(self) -> None:
         with self._connect() as conn:
             conn.execute("DELETE FROM people")
+            conn.execute("DELETE FROM transfer_schedule_blocks")
+            conn.execute("DELETE FROM transfer_schedule_conflicts")
+            conn.execute("DELETE FROM transfer_schedule_meta")
             self._set_meta(conn, last_imported_at="", record_count="0", source_file_name="", schema_version=str(SCHEMA_VERSION))
             self._record_history(conn, "clear", "", 0, 0, 0, 0, True)
             conn.commit()
+
+    def get_people_updated_since(self, since_updated_at: str | None) -> list[PersonRecord]:
+        if not since_updated_at:
+            return self.list_people()
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM people WHERE updated_at > ? ORDER BY updated_at ASC, id ASC",
+                (since_updated_at,),
+            ).fetchall()
+        return [self._row_to_person(r) for r in rows]
+
+    def _next_schedule_version(self, conn: sqlite3.Connection) -> int:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(schedule_version), 0) AS v FROM transfer_schedule_meta"
+        ).fetchone()
+        return int(row["v"]) + 1
+
+    def replace_transfer_schedule(
+        self,
+        *,
+        blocks: list[ScheduleBlock],
+        conflicts: list[ScheduleConflict],
+        generated_by_operation: str,
+        source_dataset_version: int,
+        source_dataset_last_imported_at: str | None,
+        source_max_person_updated_at: str | None,
+        pseudo_code_version_ref: str,
+    ) -> ScheduleMetadata:
+        now = utc_now()
+        with self._connect() as conn:
+            conn.execute("BEGIN")
+            schedule_version = self._next_schedule_version(conn)
+            for block in blocks:
+                conn.execute(
+                    """
+                    INSERT INTO transfer_schedule_blocks(
+                        block_id, schedule_version, person_id, person_display_name, current_zone,
+                        starting_companionship_key, render_order, raw_text, source_person_updated_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        block.block_id,
+                        schedule_version,
+                        block.person_id,
+                        block.person_display_name,
+                        block.current_zone,
+                        block.starting_companionship_key,
+                        block.render_order,
+                        block.raw_text,
+                        block.source_person_updated_at,
+                        now,
+                        now,
+                    ),
+                )
+
+            for conflict in conflicts:
+                anchors = [
+                    {
+                        "block_id": a.block_id,
+                        "line_start": a.line_start,
+                        "line_end": a.line_end,
+                        "char_start": a.char_start,
+                        "char_end": a.char_end,
+                        "highlight_token": a.highlight_token,
+                    }
+                    for a in conflict.anchors
+                ]
+                conn.execute(
+                    """
+                    INSERT INTO transfer_schedule_conflicts(
+                        conflict_id, schedule_version, conflict_type, severity, message,
+                        affected_people_json, affected_locations_json, anchors_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        conflict.conflict_id,
+                        schedule_version,
+                        conflict.conflict_type,
+                        conflict.severity,
+                        conflict.message,
+                        json.dumps(conflict.affected_people, ensure_ascii=False),
+                        json.dumps(conflict.affected_locations, ensure_ascii=False),
+                        json.dumps(anchors, ensure_ascii=False),
+                        now,
+                    ),
+                )
+
+            conn.execute(
+                """
+                INSERT INTO transfer_schedule_meta(
+                    schedule_version, generated_at, generated_by_operation, source_dataset_version,
+                    source_dataset_last_imported_at, source_max_person_updated_at, pseudo_code_version_ref,
+                    block_count, conflict_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    schedule_version,
+                    now,
+                    generated_by_operation,
+                    source_dataset_version,
+                    source_dataset_last_imported_at,
+                    source_max_person_updated_at,
+                    pseudo_code_version_ref,
+                    len(blocks),
+                    len(conflicts),
+                ),
+            )
+            conn.commit()
+
+        return ScheduleMetadata(
+            schedule_version=schedule_version,
+            generated_at=now,
+            generated_by_operation=generated_by_operation,
+            source_dataset_version=source_dataset_version,
+            source_dataset_last_imported_at=source_dataset_last_imported_at,
+            source_max_person_updated_at=source_max_person_updated_at,
+            pseudo_code_version_ref=pseudo_code_version_ref,
+            block_count=len(blocks),
+            conflict_count=len(conflicts),
+        )
+
+    def load_latest_transfer_meta(self) -> ScheduleMetadata | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT schedule_version, generated_at, generated_by_operation, source_dataset_version,
+                       source_dataset_last_imported_at, source_max_person_updated_at, pseudo_code_version_ref,
+                       block_count, conflict_count
+                FROM transfer_schedule_meta
+                ORDER BY schedule_version DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        if not row:
+            return None
+        return ScheduleMetadata(
+            schedule_version=row["schedule_version"],
+            generated_at=row["generated_at"],
+            generated_by_operation=row["generated_by_operation"],
+            source_dataset_version=row["source_dataset_version"],
+            source_dataset_last_imported_at=row["source_dataset_last_imported_at"],
+            source_max_person_updated_at=row["source_max_person_updated_at"],
+            pseudo_code_version_ref=row["pseudo_code_version_ref"],
+            block_count=row["block_count"],
+            conflict_count=row["conflict_count"],
+        )
+
+    def load_transfer_schedule(self, schedule_version: int | None = None) -> list[ScheduleBlock]:
+        if schedule_version is None:
+            meta = self.load_latest_transfer_meta()
+            if not meta:
+                return []
+            schedule_version = meta.schedule_version
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT block_id, person_id, person_display_name, current_zone, starting_companionship_key,
+                       render_order, raw_text, created_at, updated_at, source_person_updated_at
+                FROM transfer_schedule_blocks
+                WHERE schedule_version = ?
+                ORDER BY render_order ASC
+                """,
+                (schedule_version,),
+            ).fetchall()
+        return [
+            ScheduleBlock(
+                block_id=row["block_id"],
+                person_id=row["person_id"],
+                person_display_name=row["person_display_name"],
+                current_zone=row["current_zone"],
+                starting_companionship_key=row["starting_companionship_key"],
+                render_order=row["render_order"],
+                raw_text=row["raw_text"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+                source_person_updated_at=row["source_person_updated_at"],
+            )
+            for row in rows
+        ]
+
+    def load_transfer_conflicts(self, schedule_version: int | None = None) -> list[ScheduleConflict]:
+        if schedule_version is None:
+            meta = self.load_latest_transfer_meta()
+            if not meta:
+                return []
+            schedule_version = meta.schedule_version
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT conflict_id, conflict_type, severity, message, affected_people_json,
+                       affected_locations_json, anchors_json, created_at
+                FROM transfer_schedule_conflicts
+                WHERE schedule_version = ?
+                ORDER BY created_at ASC, conflict_id ASC
+                """,
+                (schedule_version,),
+            ).fetchall()
+
+        conflicts: list[ScheduleConflict] = []
+        for row in rows:
+            anchors_data = json.loads(row["anchors_json"])
+            anchors = [
+                ConflictAnchor(
+                    block_id=a["block_id"],
+                    line_start=a["line_start"],
+                    line_end=a["line_end"],
+                    char_start=a.get("char_start"),
+                    char_end=a.get("char_end"),
+                    highlight_token=a.get("highlight_token"),
+                )
+                for a in anchors_data
+            ]
+            conflicts.append(
+                ScheduleConflict(
+                    conflict_id=row["conflict_id"],
+                    conflict_type=row["conflict_type"],
+                    severity=row["severity"],
+                    message=row["message"],
+                    affected_people=list(json.loads(row["affected_people_json"])),
+                    affected_locations=list(json.loads(row["affected_locations_json"])),
+                    anchors=anchors,
+                    created_at=row["created_at"],
+                )
+            )
+        return conflicts

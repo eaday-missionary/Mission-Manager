@@ -11,6 +11,7 @@ from .dashboard_view import DashboardView
 from .data_mgmt_view import DataManagementView
 from .detail_view import DetailView
 from .dialogs import ask_confirm, pick_excel_file, show_error
+from .transfer_editor_view import TransferEditorView
 
 
 class MissionManagerApp:
@@ -54,12 +55,16 @@ class MissionManagerApp:
         self.dashboard_view.set_view_mode("compact")
         self.detail_view = DetailView(notebook)
         self.data_view = DataManagementView(notebook)
+        self.transfer_view = TransferEditorView(notebook)
 
         notebook.add(self.dashboard_view, text="Dashboard")
         notebook.add(self.detail_view, text="Person Detail")
         notebook.add(self.data_view, text="Data Management")
+        notebook.add(self.transfer_view, text="Transfer Editor")
 
         self.dashboard_view.on_open_detail = self.open_detail
+        self.dashboard_view.on_create_schedule = self.create_schedule
+        self.dashboard_view.on_fix_schedule = self.fix_schedule
         self.dashboard_view.bind_query_events(self.request_refresh)
         self.detail_view.on_apply = self.apply_detail
         self.detail_view.on_cancel = lambda: notebook.select(self.dashboard_view)
@@ -69,6 +74,8 @@ class MissionManagerApp:
         self.data_view.on_clear = self.clear_data
 
         self.notebook = notebook
+        self.root.bind("<Control-f>", self._focus_transfer_search)
+        self.root.bind("<Control-F>", self._focus_transfer_search)
 
         self._sync_startup_state()
 
@@ -167,6 +174,40 @@ class MissionManagerApp:
         )
         style.configure("Treeview.Heading", background=card, foreground=text)
         style.map("Treeview", background=[("selected", select_bg)], foreground=[("selected", "#FFFFFF")])
+        style.configure(
+            "App.Vertical.TScrollbar",
+            background="#3A4354",
+            troughcolor="#1A1E25",
+            bordercolor="#1A1E25",
+            arrowcolor="#D0D7E2",
+            darkcolor="#3A4354",
+            lightcolor="#3A4354",
+            relief="flat",
+            arrowsize=12,
+            gripcount=0,
+        )
+        style.map(
+            "App.Vertical.TScrollbar",
+            background=[("active", "#4B5A74"), ("pressed", "#5A6B8A")],
+            arrowcolor=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
+        )
+        style.configure(
+            "App.Horizontal.TScrollbar",
+            background="#3A4354",
+            troughcolor="#1A1E25",
+            bordercolor="#1A1E25",
+            arrowcolor="#D0D7E2",
+            darkcolor="#3A4354",
+            lightcolor="#3A4354",
+            relief="flat",
+            arrowsize=12,
+            gripcount=0,
+        )
+        style.map(
+            "App.Horizontal.TScrollbar",
+            background=[("active", "#4B5A74"), ("pressed", "#5A6B8A")],
+            arrowcolor=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
+        )
 
     def request_refresh(self, *, debounce: bool = False) -> None:
         if debounce:
@@ -187,6 +228,7 @@ class MissionManagerApp:
             self.import_frame.pack_forget()
             self.main_frame.pack(fill="both", expand=True)
             self.refresh_people()
+            self.refresh_transfer_editor()
             self.data_view.set_status(record_count=state.record_count, last_imported_at=state.last_imported_at, source_file_name=state.source_file_name)
         else:
             self.main_frame.pack_forget()
@@ -249,6 +291,51 @@ class MissionManagerApp:
         )
         self.dashboard_view.set_people(people)
         self.dashboard_view.update_filter_values(people)
+
+    def refresh_transfer_editor(self, note: str | None = None) -> None:
+        blocks = self.service.get_schedule_document()
+        conflicts = self.service.list_schedule_conflicts()
+        self.transfer_view.set_schedule(blocks, conflicts, note=note)
+
+    def _focus_transfer_search(self, _event: tk.Event) -> str | None:
+        if self.notebook.select() != str(self.transfer_view):
+            return None
+        self.transfer_view.focus_search()
+        return "break"
+
+    def create_schedule(self) -> None:
+        warning = (
+            "WARNING, this will erase the current schedule in the transfer editor and regenerate a new schedule. "
+            "Do you still want to continue?"
+        )
+        if not ask_confirm("Create Schedule", warning):
+            return
+        self.transfer_view.show_loading("Creating schedule...")
+        result = self.service.create_schedule(confirm_overwrite=True)
+        if not result.success:
+            message = "\n".join(error.message for error in result.errors) or "Schedule creation failed."
+            show_error("Create Schedule Error", message)
+            self.refresh_transfer_editor(note="Schedule creation failed.")
+            return
+        self.message_var.set(
+            f"Schedule created: {result.blocks_generated} blocks, {result.conflicts_found} conflicts."
+        )
+        self.refresh_transfer_editor(note="Schedule created.")
+        self.notebook.select(self.transfer_view)
+
+    def fix_schedule(self) -> None:
+        self.transfer_view.show_loading("Fixing schedule...")
+        result = self.service.fix_schedule()
+        if not result.success:
+            message = "\n".join(error.message for error in result.errors) or "Schedule fix failed."
+            show_error("Fix Schedule Error", message)
+            self.refresh_transfer_editor(note="Schedule fix failed.")
+            return
+        self.message_var.set(
+            f"Schedule fixed: rebuilt {result.blocks_rebuilt} blocks, {result.conflicts_found} conflicts."
+        )
+        self.refresh_transfer_editor(note="Schedule updated.")
+        self.notebook.select(self.transfer_view)
 
     def open_detail(self, person_id: str) -> None:
         person = self.service.get_person(person_id)
