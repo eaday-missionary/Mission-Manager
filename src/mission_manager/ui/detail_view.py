@@ -51,13 +51,6 @@ class DetailView(ttk.Frame):
         self.form_frame.bind("<Configure>", self._on_form_configure)
         self.canvas.bind("<Configure>", self._on_canvas_configure)
 
-        self.canvas.bind("<MouseWheel>", self._on_mouse_wheel)
-        self.form_frame.bind("<MouseWheel>", self._on_mouse_wheel)
-        self.canvas.bind("<Button-4>", self._on_mouse_wheel_linux)
-        self.canvas.bind("<Button-5>", self._on_mouse_wheel_linux)
-        self.form_frame.bind("<Button-4>", self._on_mouse_wheel_linux)
-        self.form_frame.bind("<Button-5>", self._on_mouse_wheel_linux)
-
         for i, field in enumerate(PERSON_FIELDS):
             r = i
             ttk.Label(self.form_frame, text=FIELD_TO_HEADER[field]).grid(
@@ -90,6 +83,9 @@ class DetailView(ttk.Frame):
             foreground="#34D399",
             wraplength=220,
         ).grid(row=3, column=0, sticky="w", pady=(6, 0))
+
+        self._bind_scroll_events_recursive(self.canvas)
+        self._bind_scroll_events_recursive(self.form_frame)
 
     def load_person(self, person) -> None:
         self.current_person_id = person.id
@@ -138,14 +134,26 @@ class DetailView(ttk.Frame):
     def _on_canvas_configure(self, event: tk.Event) -> None:
         self.canvas.itemconfigure(self._form_window, width=event.width)
 
-    def _on_mouse_wheel(self, event: tk.Event) -> None:
+    def _bind_scroll_events_recursive(self, widget: tk.Misc) -> None:
+        widget.bind("<MouseWheel>", self._on_mouse_wheel, add="+")
+        widget.bind("<Button-4>", self._on_mouse_wheel_linux, add="+")
+        widget.bind("<Button-5>", self._on_mouse_wheel_linux, add="+")
+        for child in widget.winfo_children():
+            self._bind_scroll_events_recursive(child)
+
+    def _on_mouse_wheel(self, event: tk.Event) -> str:
         # Windows/macOS wheel events.
         if event.delta:
             self.canvas.yview_scroll(int(-event.delta / 120), "units")
+            return "break"
+        return ""
 
-    def _on_mouse_wheel_linux(self, event: tk.Event) -> None:
+    def _on_mouse_wheel_linux(self, event: tk.Event) -> str:
         # Linux wheel events.
         if event.num == 4:
             self.canvas.yview_scroll(-1, "units")
+            return "break"
         elif event.num == 5:
             self.canvas.yview_scroll(1, "units")
+            return "break"
+        return ""
