@@ -79,6 +79,7 @@ Each journey uses:
 - `System Response`:
   - Red inline highlights match red right-panel entries.
   - Right panel lists affected people and locations.
+  - Clicking a conflict entry centers the selected anchor at a fixed viewport center spot (within pixel-rounding tolerance).
   - `Create Schedule` regenerates schedule blocks and refreshes conflict set.
 - `Outcome`: Corrected time conflicts disappear or reduce after schedule regeneration.
 - `Failure Path`: If conflicts remain, entries persist with updated messaging and exact affected locations.
@@ -95,6 +96,7 @@ Each journey uses:
 - `System Response`:
   - Yellow inline highlights map to yellow right-panel entries.
   - Conflict messages specify affected locations.
+  - Clicking a conflict entry centers the selected anchor at a fixed viewport center spot (within pixel-rounding tolerance).
   - Regeneration refresh updates schedule blocks and all conflict summaries.
 - `Outcome`: Location inconsistencies are cleared or narrowed for follow-up.
 - `Failure Path`: Unresolved location issues remain visible with actionable guidance.
@@ -197,6 +199,7 @@ Each journey uses:
   - Search updates character-by-character with case-insensitive contains matching.
   - All matches are highlighted in light sky blue and active match is highlighted in light turquoise.
   - Up/Down navigation wraps at boundaries (last -> first, first -> last).
+  - First/next/previous match jumps keep the active anchor at the same viewport center spot without cumulative drift.
   - Search-highlight colors remain visible even when matched text overlaps conflict-highlighted lines.
 - `Outcome`: User reviews all relevant schedule occurrences quickly and accurately.
 - `Failure Path`: If no matches are found, UI shows `0 matches`; user can clear or adjust query and retry.
@@ -219,6 +222,7 @@ Each journey uses:
 - [ ] No-conflict path is explicitly defined.
 - [ ] Performance journey exists for 100-150 record usage.
 - [ ] Search journey covers live typing, keyboard navigation, and `Ctrl+F` focus behavior.
+- [ ] Search and conflict jump journeys explicitly require center-lock landing without drift.
 - [ ] Card navigation journey covers double-click to Person Detail and stale-row failure behavior.
 
 ## Documentation Conventions and Traceability

@@ -27,6 +27,14 @@ def _person_row(person_id: str, first_name: str, last_name: str) -> SimpleNamesp
     return SimpleNamespace(**payload)
 
 
+def _canvas_anchor_for(view: TransferEditorView, block_id: str, text_index: str | None) -> float:
+    frame = view._block_frames[block_id]
+    widget = view._block_text_widgets.get(block_id)
+    anchor = view._resolve_anchor_canvas_y(frame, widget, text_index)
+    assert anchor is not None
+    return anchor
+
+
 class _FakeService:
     def __init__(self) -> None:
         self.people = []
@@ -97,6 +105,7 @@ def test_app_wires_transfer_editor_tab(monkeypatch) -> None:
     assert app.dashboard_view.y_scroll.cget("style") == "App.Vertical.TScrollbar"
     assert app.dashboard_view.x_scroll.cget("style") == "App.Horizontal.TScrollbar"
     assert app.transfer_view.conflict_list.cget("selectbackground") == "#F59E0B"
+    assert root.title() == "Mission Manager 1.1"
 
     root.destroy()
 
@@ -235,6 +244,257 @@ def test_transfer_search_reapplies_after_conflict_selection() -> None:
     view._on_conflict_selected(None)
     active_after = tuple(str(i) for i in widget.tag_ranges("search_match_active"))
     assert active_after == active_before
+    root.destroy()
+
+
+def test_transfer_center_anchor_in_view_uses_centered_fraction_math(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = TransferEditorView(root)
+    calls: list[float] = []
+    monkeypatch.setattr(view.cards_canvas, "bbox", lambda _tag: (0, 0, 800, 2000))
+    monkeypatch.setattr(view.cards_canvas, "winfo_height", lambda: 400)
+    monkeypatch.setattr(view.cards_canvas, "yview_moveto", lambda fraction: calls.append(fraction))
+
+    view._center_anchor_in_view(680)
+
+    assert calls
+    assert calls[0] == pytest.approx((680 - 200) / 2000)
+    root.destroy()
+
+
+def test_transfer_scroll_to_block_has_no_drift_with_canvas_fraction_mapping(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = TransferEditorView(root)
+    anchors = {
+        "block-1": 700.0,
+        "block-2": 1450.0,
+        "block-3": 2300.0,
+        "block-4": 3150.0,
+        "block-5": 4000.0,
+        "block-6": 4750.0,
+    }
+    view._block_frames = {block_id: object() for block_id in anchors}
+    view._block_text_widgets = {}
+
+    region_top = 100.0
+    total_height = 5000.0
+    viewport_height = 600.0
+    state = {"top": region_top}
+
+    monkeypatch.setattr(
+        view.cards_canvas,
+        "bbox",
+        lambda _tag: (0.0, region_top, 900.0, region_top + total_height),
+    )
+    monkeypatch.setattr(view.cards_canvas, "winfo_height", lambda: viewport_height)
+    monkeypatch.setattr(view.cards_canvas, "canvasy", lambda _y: state["top"])
+
+    def _set_yview(fraction: float) -> None:
+        state["top"] = region_top + (fraction * total_height)
+
+    monkeypatch.setattr(view.cards_canvas, "yview_moveto", _set_yview)
+    monkeypatch.setattr(view, "_ensure_cards_geometry_ready", lambda: None)
+    monkeypatch.setattr(
+        view,
+        "_resolve_anchor_canvas_y",
+        lambda _frame, _widget, _text_index: anchors[_frame],  # type: ignore[index]
+    )
+
+    # Re-map block id lookups to anchor keys while preserving _scroll_to_block call shape.
+    view._block_frames = {block_id: block_id for block_id in anchors}
+
+    errors: list[float] = []
+    for _ in range(3):
+        for block_id, anchor in anchors.items():
+            view._scroll_to_block(block_id, None)
+            viewport_mid = state["top"] + (viewport_height / 2)
+            errors.append(abs(anchor - viewport_mid))
+
+    assert max(errors) <= 2.0
+    root.destroy()
+
+
+def test_transfer_search_jump_centers_target_card(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = TransferEditorView(root)
+    blocks = [
+        ScheduleBlock(
+            block_id=f"block-{i}",
+            person_id=f"person-{i}",
+            person_display_name=f"Person {i}",
+            current_zone="Zone A",
+            starting_companionship_key=f"key-{i}",
+            render_order=i,
+            raw_text=("match target" if i == 4 else "no target") + "\n-----------------------------------",
+        )
+        for i in range(1, 7)
+    ]
+    view.set_schedule(blocks, [])
+    root.update_idletasks()
+
+    y_calls: list[float] = []
+    original_yview_moveto = view.cards_canvas.yview_moveto
+
+    def _capture_yview(fraction: float) -> None:
+        y_calls.append(fraction)
+        original_yview_moveto(fraction)
+        root.update_idletasks()
+
+    monkeypatch.setattr(view.cards_canvas, "yview_moveto", _capture_yview)
+    view._search_query.set("match target")
+    view._refresh_search_matches()
+
+    assert y_calls
+    assert view._active_search_match_index is not None
+    block_id, start_idx, _ = view._search_matches[view._active_search_match_index]
+    anchor = _canvas_anchor_for(view, block_id, start_idx)
+    canvas_top = view.cards_canvas.canvasy(0)
+    canvas_mid = canvas_top + (view.cards_canvas.winfo_height() / 2)
+    assert abs(canvas_mid - anchor) <= 4
+    root.destroy()
+
+
+def test_transfer_conflict_jump_centers_target_card(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = TransferEditorView(root)
+    blocks = [
+        ScheduleBlock(
+            block_id=f"block-{i}",
+            person_id=f"person-{i}",
+            person_display_name=f"Person {i}",
+            current_zone="Zone A",
+            starting_companionship_key=f"key-{i}",
+            render_order=i,
+            raw_text=f"Card {i}\n-----------------------------------",
+        )
+        for i in range(1, 7)
+    ]
+    conflict = ScheduleConflict(
+        conflict_id="conflict-1",
+        conflict_type="TIME_CONFLICT",
+        severity="red",
+        message="Target conflict",
+        anchors=[ConflictAnchor(block_id="block-5", line_start=1, line_end=1)],
+    )
+    view.set_schedule(blocks, [conflict])
+    root.update_idletasks()
+
+    y_calls: list[float] = []
+    original_yview_moveto = view.cards_canvas.yview_moveto
+
+    def _capture_yview(fraction: float) -> None:
+        y_calls.append(fraction)
+        original_yview_moveto(fraction)
+        root.update_idletasks()
+
+    monkeypatch.setattr(view.cards_canvas, "yview_moveto", _capture_yview)
+    view.conflict_list.selection_set(0)
+    view._on_conflict_selected(None)
+
+    assert y_calls
+    anchor = _canvas_anchor_for(view, "block-5", "1.0")
+    canvas_top = view.cards_canvas.canvasy(0)
+    canvas_mid = canvas_top + (view.cards_canvas.winfo_height() / 2)
+    assert abs(canvas_mid - anchor) <= 4
+    root.destroy()
+
+
+def test_transfer_first_and_last_blocks_center_with_gutters() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = TransferEditorView(root)
+    blocks = [
+        ScheduleBlock(
+            block_id=f"block-{i}",
+            person_id=f"person-{i}",
+            person_display_name=f"Person {i}",
+            current_zone="Zone A",
+            starting_companionship_key=f"key-{i}",
+            render_order=i,
+            raw_text=f"Card {i}\n-----------------------------------",
+        )
+        for i in range(1, 9)
+    ]
+    view.set_schedule(blocks, [])
+    root.update_idletasks()
+
+    for block_id in ("block-1", "block-8"):
+        view._scroll_to_block(block_id, "1.0")
+        root.update_idletasks()
+        anchor = _canvas_anchor_for(view, block_id, "1.0")
+        canvas_mid = view.cards_canvas.canvasy(0) + (view.cards_canvas.winfo_height() / 2)
+        assert abs(canvas_mid - anchor) <= 4
+    root.destroy()
+
+
+def test_transfer_repeated_search_navigation_does_not_drift_from_center() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = TransferEditorView(root)
+    blocks = [
+        ScheduleBlock(
+            block_id=f"block-{i}",
+            person_id=f"person-{i}",
+            person_display_name=f"Person {i}",
+            current_zone="Zone A",
+            starting_companionship_key=f"key-{i}",
+            render_order=i,
+            raw_text="target keyword\n-----------------------------------",
+        )
+        for i in range(1, 10)
+    ]
+    view.set_schedule(blocks, [])
+    view._search_query.set("target")
+    view._refresh_search_matches()
+    root.update_idletasks()
+
+    errors: list[float] = []
+    for _ in range(20):
+        view._goto_next_match()
+        root.update_idletasks()
+        assert view._active_search_match_index is not None
+        block_id, start_idx, _ = view._search_matches[view._active_search_match_index]
+        anchor = _canvas_anchor_for(view, block_id, start_idx)
+        canvas_mid = view.cards_canvas.canvasy(0) + (view.cards_canvas.winfo_height() / 2)
+        errors.append(abs(canvas_mid - anchor))
+    for _ in range(20):
+        view._goto_previous_match()
+        root.update_idletasks()
+        assert view._active_search_match_index is not None
+        block_id, start_idx, _ = view._search_matches[view._active_search_match_index]
+        anchor = _canvas_anchor_for(view, block_id, start_idx)
+        canvas_mid = view.cards_canvas.canvasy(0) + (view.cards_canvas.winfo_height() / 2)
+        errors.append(abs(canvas_mid - anchor))
+
+    assert max(errors) <= 4
     root.destroy()
 
 

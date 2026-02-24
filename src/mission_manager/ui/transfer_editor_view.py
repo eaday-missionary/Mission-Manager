@@ -109,6 +109,11 @@ class TransferEditorView(ttk.Frame):
         self._ordered_block_ids: list[str] = []
         self._placeholder_label: ttk.Label | None = None
         self._cards_scrollregion_after_id: str | None = None
+        self._top_spacer: tk.Frame | None = None
+        self._bottom_spacer: tk.Frame | None = None
+        self._centering_spacer_height: int | None = None
+
+        self._create_centering_spacers()
 
         self._bind_cards_scroll_events_recursive(self.cards_canvas)
         self._bind_cards_scroll_events_recursive(self.cards_frame)
@@ -156,7 +161,9 @@ class TransferEditorView(ttk.Frame):
     def _render_placeholder(self, text: str) -> None:
         self._clear_cards()
         self._placeholder_label = ttk.Label(self.cards_frame, text=text, wraplength=760)
-        self._placeholder_label.grid(row=0, column=0, sticky="w")
+        self._placeholder_label.grid(row=1, column=0, sticky="w")
+        if self._bottom_spacer:
+            self._bottom_spacer.grid(row=2, column=0, sticky="ew")
         self.cards_frame.columnconfigure(0, weight=1)
         self._bind_cards_scroll_events_recursive(self._placeholder_label)
         self._schedule_cards_scrollregion_update()
@@ -164,6 +171,7 @@ class TransferEditorView(ttk.Frame):
     def _clear_cards(self) -> None:
         for child in self.cards_frame.winfo_children():
             child.destroy()
+        self._create_centering_spacers()
         self._block_text_widgets = {}
         self._block_frames = {}
         self._block_person_ids = {}
@@ -174,7 +182,7 @@ class TransferEditorView(ttk.Frame):
         self._clear_cards()
         self.cards_frame.columnconfigure(0, weight=1)
 
-        row = 0
+        row = 1
         current_zone: str | None = None
         for block in sorted(blocks, key=lambda b: b.render_order):
             zone = (block.current_zone or "-").strip() or "-"
@@ -185,6 +193,7 @@ class TransferEditorView(ttk.Frame):
                     foreground="#9CC0FF",
                 )
                 zone_label.grid(row=row, column=0, sticky="w", pady=(0, 6))
+                self._bind_cards_scroll_events_recursive(zone_label)
                 row += 1
                 current_zone = zone
 
@@ -237,6 +246,8 @@ class TransferEditorView(ttk.Frame):
             self._ordered_block_ids.append(block.block_id)
             row += 1
 
+        if self._bottom_spacer:
+            self._bottom_spacer.grid(row=row, column=0, sticky="ew")
         self._schedule_cards_scrollregion_update()
 
     def _configure_text_tags(self, widget: tk.Text) -> None:
@@ -422,18 +433,28 @@ class TransferEditorView(ttk.Frame):
         widget = self._block_text_widgets.get(block_id)
         if not frame:
             return
-        self.cards_canvas.update_idletasks()
-        self.cards_frame.update_idletasks()
-        frame_y = frame.winfo_y()
-        region = self.cards_canvas.bbox("all")
-        if region:
-            total_height = region[3] - region[1]
-            viewport = max(self.cards_canvas.winfo_height(), 1)
-            denom = max(total_height - viewport, 1)
-            fraction = min(max(frame_y / denom, 0.0), 1.0)
-            self.cards_canvas.yview_moveto(fraction)
+        self._ensure_cards_geometry_ready()
         if widget and text_index:
             widget.see(text_index)
+            widget.update_idletasks()
+        anchor_y = self._resolve_anchor_canvas_y(frame, widget, text_index)
+        if anchor_y is None:
+            return
+        self._center_anchor_in_view(anchor_y)
+        self._ensure_cards_geometry_ready()
+        if widget and text_index:
+            widget.see(text_index)
+            widget.update_idletasks()
+        corrected_anchor_y = self._resolve_anchor_canvas_y(frame, widget, text_index)
+        if corrected_anchor_y is None:
+            return
+        viewport_height = max(self.cards_canvas.winfo_height(), 1)
+        canvas_top = self.cards_canvas.canvasy(0)
+        viewport_mid = canvas_top + (viewport_height / 2)
+        error = corrected_anchor_y - viewport_mid
+        if abs(error) > 2.0:
+            self._move_canvas_top_to(canvas_top + error)
+            self._ensure_cards_geometry_ready()
 
     def _open_person(self, person_id: str) -> None:
         if self.on_open_person:
@@ -444,6 +465,8 @@ class TransferEditorView(ttk.Frame):
 
     def _on_cards_canvas_configure(self, event: tk.Event) -> None:
         self.cards_canvas.itemconfigure(self._cards_window, width=event.width)
+        self._update_centering_spacers(event.height)
+        self._schedule_cards_scrollregion_update()
 
     def _on_cards_mouse_wheel(self, event: tk.Event) -> str:
         if event.delta:
@@ -474,3 +497,91 @@ class TransferEditorView(ttk.Frame):
     def _refresh_cards_scrollregion(self) -> None:
         self._cards_scrollregion_after_id = None
         self.cards_canvas.configure(scrollregion=self.cards_canvas.bbox("all"))
+
+    def _ensure_cards_geometry_ready(self) -> None:
+        if self._cards_scrollregion_after_id is not None:
+            self.cards_canvas.after_cancel(self._cards_scrollregion_after_id)
+            self._cards_scrollregion_after_id = None
+        self.cards_canvas.update_idletasks()
+        self.cards_frame.update_idletasks()
+        self._update_centering_spacers()
+        self._refresh_cards_scrollregion()
+        self.cards_canvas.update_idletasks()
+        self.cards_frame.update_idletasks()
+
+    def _create_centering_spacers(self) -> None:
+        self.cards_frame.columnconfigure(0, weight=1)
+        self._top_spacer = tk.Frame(
+            self.cards_frame,
+            bg="#131923",
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        self._bottom_spacer = tk.Frame(
+            self.cards_frame,
+            bg="#131923",
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        self._top_spacer.grid(row=0, column=0, sticky="ew")
+        self._bottom_spacer.grid(row=1, column=0, sticky="ew")
+        self._centering_spacer_height = None
+        self._update_centering_spacers()
+
+    def _update_centering_spacers(self, viewport_height: int | None = None) -> None:
+        if not self._top_spacer or not self._bottom_spacer:
+            return
+        if viewport_height is None:
+            viewport_height = max(self.cards_canvas.winfo_height(), 0)
+        spacer_height = max(int(viewport_height / 2), 0)
+        if spacer_height == self._centering_spacer_height:
+            return
+        self._centering_spacer_height = spacer_height
+        self._top_spacer.configure(height=spacer_height)
+        self._bottom_spacer.configure(height=spacer_height)
+
+    def _resolve_anchor_canvas_y(
+        self,
+        frame: ttk.Frame,
+        widget: tk.Text | None,
+        text_index: str | None,
+    ) -> float | None:
+        coords = self.cards_canvas.coords(self._cards_window)
+        cards_window_y = coords[1] if len(coords) >= 2 else 0.0
+        frame_top = frame.winfo_y()
+        if widget and text_index:
+            try:
+                line_info = widget.dlineinfo(text_index)
+            except tk.TclError:
+                line_info = None
+            if line_info:
+                return (
+                    cards_window_y
+                    + frame_top
+                    + widget.winfo_y()
+                    + line_info[1]
+                    + (line_info[3] / 2)
+                )
+        frame_height = max(frame.winfo_height(), 1)
+        return cards_window_y + frame_top + (frame_height / 2)
+
+    def _center_anchor_in_view(self, anchor_canvas_y: float) -> None:
+        viewport_height = max(self.cards_canvas.winfo_height(), 1)
+        target_top = anchor_canvas_y - (viewport_height / 2)
+        self._move_canvas_top_to(target_top)
+
+    def _move_canvas_top_to(self, target_top: float) -> None:
+        region = self.cards_canvas.bbox("all")
+        if not region:
+            return
+        region_top = region[1]
+        total_height = region[3] - region[1]
+        if total_height <= 0:
+            return
+        fraction = min(max((target_top - region_top) / total_height, 0.0), 1.0)
+        self.cards_canvas.yview_moveto(fraction)
+
+    def _is_anchor_centered(self, anchor_canvas_y: float, tolerance: float = 2.0) -> bool:
+        viewport_height = max(self.cards_canvas.winfo_height(), 1)
+        viewport_mid = self.cards_canvas.canvasy(0) + (viewport_height / 2)
+        return abs(anchor_canvas_y - viewport_mid) <= tolerance

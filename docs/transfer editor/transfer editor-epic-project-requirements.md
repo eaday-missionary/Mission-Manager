@@ -12,4 +12,5 @@ Transfer Editor epic project requirements:
 -- Double-clicking a schedule block must open that person's record in the `Person Detail` tab for editing.
 -- Schedule text blocks remain read-only in transfer editor; users edit data through dashboard/person detail and re-run `Create Schedule`.
 -- The transfer editor must include a live search bar above the schedule viewer that updates character-by-character, auto-scrolls to the first match, supports Up/Down navigation through matches with wrap-around, and supports `Ctrl+F` focus when the Transfer Editor tab is active.
+-- Search-result jumps and conflict-entry jumps must center the selected schedule anchor at a fixed viewport center spot with no cumulative drift across repeated navigation.
 -- The transfer editor visual surface must follow the app dark theme with readable light text and consistent, modern solid scrollbars.

@@ -192,3 +192,4 @@ Navigation model:
 ## Implementation Note
 - Current implementation supports canonical headers and known sample-header aliases (for example `Transfer to Zone`, `Staying?`, `Departing Terminal`) which are normalized internally.
 - Dashboard search is global (no field dropdown), refresh is automatic, the UI uses a built-in dark themed style, and scrollbars use a consistent solid dark visual treatment.
+- App shell window title currently displays `Mission Manager 1.1` for release identification.

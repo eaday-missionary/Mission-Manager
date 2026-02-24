@@ -63,6 +63,7 @@ Required layout behavior:
 
 ### Transfer Editor Read/Review Interaction
 - `FR-019` Clicking a conflict entry in right panel must scroll/jump to associated schedule block anchor.
+- `FR-043` Conflict-entry jump targets must land with the selected anchor centered at a fixed viewport center position (within pixel-rounding tolerance).
 - `FR-020` Clicking highlighted text should set corresponding right-panel conflict entry as active.
 - `FR-021` Active conflict selection must have distinct visual emphasis in both panes.
 - `FR-022` Transfer editor content must render UTF-8 safely and preserve Hangul text.
@@ -71,6 +72,7 @@ Required layout behavior:
 - `FR-034` Search must execute as user types (character-by-character) using case-insensitive contains matching on schedule text.
 - `FR-035` When query contains matches, transfer editor must auto-scroll to the first match and mark it active.
 - `FR-036` Search must support Up/Down keyboard navigation through matches with wrap-around.
+- `FR-044` Search first/next/previous jumps must keep the active match anchor in the same viewport center spot without cumulative drift.
 - `FR-037` `Ctrl+F` must focus the transfer-editor search bar only when the Transfer Editor tab is active.
 - `FR-038` Search highlights must render with:
   - All matches: light sky blue (`#87CEFA`)
@@ -145,6 +147,7 @@ Required layout behavior:
 ### Accessibility
 - Primary controls and conflict navigation are keyboard-usable.
 - Focus and active-selection indicators are visible and consistent.
+- Search and conflict jumps land the active anchor at the same center position (within pixel-rounding tolerance).
 
 ## Frontend Test Scenarios
 1. Empty state:
@@ -189,6 +192,10 @@ Required layout behavior:
 12. Card interaction:
 - Schedule renders as one boxed card per person block with zone headers retained.
 - Double-clicking a card opens that person in Person Detail.
+
+13. Center-lock jump behavior:
+- Repeated search next/previous navigation does not drift upward/downward over time.
+- Clicking conflict entries lands each target anchor at the fixed center position (bounds permitting).
 
 ## Assumptions and Defaults
 - Transfer editor schedule content is backend-authored; frontend does not re-interpret pseudo-code logic.

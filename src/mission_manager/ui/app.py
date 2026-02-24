@@ -17,7 +17,7 @@ from .transfer_editor_view import TransferEditorView
 class MissionManagerApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
-        self.root.title("Mission Manager")
+        self.root.title("Mission Manager 1.1")
         self.root.geometry("1100x680")
         self.root.minsize(1100, 680)
         self._refresh_after_id: str | None = None
