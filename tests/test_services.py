@@ -14,6 +14,7 @@ def test_service_import_replace_flow(monkeypatch, tmp_path: Path) -> None:
             {
                 "first_name": "Jane",
                 "last_name": "Smith",
+                "title": "E",
                 "current_companion": None,
                 "new_companion": None,
                 "current_zone": "Z1",
@@ -56,6 +57,7 @@ def test_service_update_validation(tmp_path: Path) -> None:
             {
                 "first_name": "Jane",
                 "last_name": "Smith",
+                "title": "E",
                 "current_companion": None,
                 "new_companion": None,
                 "current_zone": "Z1",
@@ -94,6 +96,7 @@ def test_service_update_normalizes_detail_payload(tmp_path: Path) -> None:
             {
                 "first_name": "Jane",
                 "last_name": "Smith",
+                "title": "E",
                 "current_companion": "Comp A",
                 "new_companion": None,
                 "current_zone": "Z1",
@@ -125,6 +128,7 @@ def test_service_update_normalizes_detail_payload(tmp_path: Path) -> None:
         {
             "staying": "no",
             "second_leg": "yes",
+            "title": "S",
             "current_companion": "",
             "departure_time": "0945",
             "second_departure_time": "",
@@ -134,6 +138,7 @@ def test_service_update_normalizes_detail_payload(tmp_path: Path) -> None:
     assert updated is not None
     assert updated.staying is False
     assert updated.second_leg is True
+    assert updated.title == "S"
     assert updated.current_companion is None
     assert updated.departure_time == "09:45"
     assert updated.second_departure_time is None
@@ -147,6 +152,7 @@ def test_service_create_person_success_and_normalization(tmp_path: Path) -> None
         {
             "first_name": "Min",
             "last_name": "Kim",
+            "title": "E",
             "staying": "yes",
             "second_leg": "no",
             "departure_time": "0715",
@@ -157,6 +163,7 @@ def test_service_create_person_success_and_normalization(tmp_path: Path) -> None
     assert created is not None
     assert created.first_name == "Min"
     assert created.last_name == "Kim"
+    assert created.title == "E"
     assert created.staying is True
     assert created.second_leg is False
     assert created.departure_time == "07:15"

@@ -277,6 +277,7 @@ class DashboardView(ttk.Frame):
         widths = {
             "first_name": 120,
             "last_name": 120,
+            "title": 80,
             "current_companion": 180,
             "new_companion": 180,
             "current_zone": 120,

@@ -158,3 +158,20 @@ def test_dashboard_add_new_callback_invoked() -> None:
     view._handle_add_new()
     assert calls["count"] == 1
     root.destroy()
+
+
+def test_dashboard_includes_title_column_and_dash_display_for_blank_title() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = DashboardView(root)
+    person = _sample_person()
+    view.set_people([person])
+
+    assert "title" in view.tree.cget("columns")
+    row_values = view.tree.item("row-1", "values")
+    assert row_values[PERSON_FIELDS.index("title")] == "-"
+    root.destroy()

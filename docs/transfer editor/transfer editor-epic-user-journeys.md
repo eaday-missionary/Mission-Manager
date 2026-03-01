@@ -193,10 +193,15 @@ Each journey uses:
 - `Preconditions`: Schedule has been generated.
 - `Steps`:
   1. User opens `Schedule Text` tab.
-  2. User selects all text and copies it.
-  3. User pastes into destination document/message.
+  2. User chooses either `Original Names` or `Missionary Titles` from bottom mode buttons.
+  3. User selects all text and copies it.
+  4. User pastes into destination document/message.
 - `System Response`:
   - Displays one continuous text body containing all schedule blocks in render order.
+  - Shows a schedule-text search bar at the top with live matching and keyboard navigation.
+  - Shows bottom mode buttons with default `Original Names`.
+  - In `Missionary Titles` mode, replaces person naming using `Title` values (`Elder`/`Sister`/`BLANK`) and shared-last-name formatting rules.
+  - Keeps current search query and recomputes search matches when mode changes.
   - Keeps text copyable and read-focused.
   - After `Clear Dataset`, shows empty-state guidance.
   - After successful `Replace Dataset`, refreshes automatically from regenerated schedule output.
@@ -207,15 +212,17 @@ Each journey uses:
 - `JRNY-011 Goal`: Find repeated schedule text occurrences quickly without manual scrolling.
 - `Preconditions`: Transfer schedule exists and is loaded in Transfer Editor.
 - `Steps`:
-  1. User presses `Ctrl+F` while Transfer Editor tab is active.
-  2. User types a search string in the transfer search bar.
-  3. User sees auto-jump to first matching occurrence in the schedule pane.
-  4. User presses Down to move to next match and Up to move to previous match.
+  1. User opens either `Transfer Editor` or `Schedule Text`.
+  2. User presses `Ctrl+F` to focus that tab's search bar.
+  3. User types a search string.
+  4. User sees auto-jump to first matching occurrence.
+  5. User presses Down or Enter to move to next match, and Up or Shift+Enter to move to previous match.
 - `System Response`:
   - Search updates character-by-character with case-insensitive contains matching.
   - All matches are highlighted in light sky blue and active match is highlighted in light turquoise.
   - Up/Down navigation wraps at boundaries (last -> first, first -> last).
-  - First/next/previous match jumps keep the active anchor at the same viewport center spot without cumulative drift.
+  - Enter/Shift+Enter mirrors next/previous behavior.
+  - In Transfer Editor, first/next/previous match jumps keep the active anchor at the same viewport center spot without cumulative drift.
   - Search-highlight colors remain visible even when matched text overlaps conflict-highlighted lines.
 - `Outcome`: User reviews all relevant schedule occurrences quickly and accurately.
 - `Failure Path`: If no matches are found, UI shows `0 matches`; user can clear or adjust query and retry.

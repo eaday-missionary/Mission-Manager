@@ -44,6 +44,7 @@ Backend canonical record type:
 - `second_departure_time: str | null` (`HH:mm`)
 - `second_arrival_terminal: str | null`
 - `second_arrival_time: str | null` (`HH:mm`)
+- `title: str | null` (raw text; expected values are usually `E`, `S`, or blank)
 
 Meta fields:
 - `id: str` (UUID)
@@ -78,6 +79,7 @@ Canonical header set:
 - `2nd Departure Time`
 - `2nd Arrival Terminal`
 - `2nd Arrival Time`
+- `Title`
 
 Accepted aliases:
 - `Transfer to Zone` -> `New Zone`
@@ -230,7 +232,7 @@ Required query behavior:
   - `second_leg` (yes/no)
   - `second_departure_time` (earliest-latest)
   - `second_arrival_time` (earliest-latest)
-- Must support live global search across all 19 data fields with case-insensitive contains matching.
+- Must support live global search across all 20 data fields with case-insensitive contains matching.
 - Must support boolean text matching so user queries like `yes`/`no` match stored boolean fields (`staying`, `second_leg`).
 - Combined search/filter/sort results must be deterministic and stable.
 
@@ -303,7 +305,7 @@ Those variants are now accepted through alias mapping and normalized to canonica
 
 ## Test Cases and Scenarios
 1. Schema pass case:
-- Canonical 19 headers present -> import succeeds.
+- Canonical 20 headers present -> import succeeds.
 
 2. Schema fail case:
 - Missing required header -> `SCHEMA_ERROR` with header name.
@@ -334,7 +336,7 @@ Those variants are now accepted through alias mapping and normalized to canonica
 
 9. Query behavior:
 - Default `current_zone ASC` sort.
-- Field-specific search across all 19 fields.
+- Field-specific search across all 20 fields.
 - Time sorts are chronological.
 
 10. Edit behavior:

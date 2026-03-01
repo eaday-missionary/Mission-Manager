@@ -30,12 +30,12 @@ Navigation/ownership rules:
 Transfer Editor page is two-pane:
 - Left pane: scrollable schedule card list (`ScheduleBlock` list in render order).
 - Right pane: conflict panel showing conflict entries anchored to affected schedule blocks.
-- `Schedule Text` tab: one read-focused text surface that concatenates all schedule block `raw_text` content in render order.
+- `Schedule Text` tab: one read-focused text surface that concatenates all schedule block `raw_text` content in render order, with its own search bar at the top and a bottom name-mode toggle section.
 
 Required layout behavior:
 - `FR-001` Left pane must support vertical scrolling across complete generated schedule-card output.
 - `FR-002` Right pane must remain visible while left pane scrolls.
-- `FR-033` A transfer-editor search bar must be shown above the two panes for schedule-text lookup.
+- `FR-033` A search bar must be shown at the top of both `Transfer Editor` and `Schedule Text` tabs.
 - `FR-003` Each schedule block must render inside a boxed card preserving line breaks and separator line `-----------------------------------`.
 - `FR-004` Right pane entries must only include conflicts that affect currently loaded schedule blocks.
 - `FR-005` Empty conflict state must display a positive no-conflict message instead of blank panel.
@@ -77,12 +77,21 @@ Required layout behavior:
 - `FR-035` When query contains matches, transfer editor must auto-scroll to the first match and mark it active.
 - `FR-036` Search must support Up/Down keyboard navigation through matches with wrap-around.
 - `FR-044` Search first/next/previous jumps must keep the active match anchor in the same viewport center spot without cumulative drift.
-- `FR-037` `Ctrl+F` must focus the transfer-editor search bar only when the Transfer Editor tab is active.
+- `FR-037` `Ctrl+F` must focus the search bar on the active schedule tab (`Transfer Editor` or `Schedule Text`).
 - `FR-038` Search highlights must render with:
   - All matches: light sky blue (`#87CEFA`)
   - Active match: light turquoise (`#40E0D0`)
 - `FR-039` Search highlight colors must take precedence over conflict line highlight colors for overlapping text spans.
 - `FR-046` `Schedule Text` must render all generated schedule block text as one continuous copyable text document with no per-block card wrappers.
+- `FR-048` `Schedule Text` search must match Transfer Editor search behavior: character-by-character matching, first-match auto-jump, Up/Down and Enter/Shift+Enter navigation with wrap-around, all-match and active-match highlights, and status text (`0 matches`, `n matches`, `i/n`).
+- `FR-049` `Schedule Text` must include two bottom toggle buttons: `Original Names` and `Missionary Titles`.
+- `FR-050` `Schedule Text` default mode must be `Original Names`, preserving backend-generated text.
+- `FR-051` In `Missionary Titles` mode, person-name rendering must use `Title` mapping: `E` -> `Elder`, `S` -> `Sister`, blank/`-`/other -> `BLANK`.
+- `FR-052` In `Missionary Titles` mode, name format must be:
+  - Unique last name: `Title LastName`
+  - Shared last name: `Title FirstName LastName`
+- `FR-053` Name-mode toggles must apply to `Schedule Text` only and must not modify `Transfer Editor` card text.
+- `FR-054` Switching `Schedule Text` name mode must preserve current search query and recompute match ranges/status/highlights on the rerendered content.
 
 ## Functional Requirements
 - `FR-023` Transfer editor must render schedule blocks in backend-provided deterministic order.
@@ -112,7 +121,7 @@ Required layout behavior:
   - Tab traversal between controls and panes.
   - Enter/Space activation for create and conflict selection.
   - Up/Down search result traversal when focus is in transfer search bar.
-  - `Ctrl+F` shortcut focus for transfer search when Transfer Editor tab is active.
+  - `Ctrl+F` shortcut focus for search in the active schedule tab (`Transfer Editor` or `Schedule Text`).
 - `ACC-002` Focus must be managed after create completion (focus returned to primary transfer editor region).
 - `ACC-003` Highlight colors must meet readable contrast requirements with text/background.
 - `ACC-004` Conflict state must not rely on color alone; include icon/label text such as `Time Conflict` and `Location Conflict`.
@@ -193,7 +202,8 @@ Required layout behavior:
 11. Transfer search live behavior:
 - Typing in transfer search updates results per character and auto-jumps to first match.
 - Up/Down cycles through matches and wraps from end to start and start to end.
-- `Ctrl+F` focuses search entry only while Transfer Editor tab is active.
+- Enter moves to next match and Shift+Enter moves to previous match.
+- `Ctrl+F` focuses search entry on the active schedule tab.
 - Overlapping conflict spans still show search highlight colors for matched text.
 
 12. Card interaction:
@@ -206,6 +216,10 @@ Required layout behavior:
 
 14. Schedule Text rendering:
 - Combined text includes all generated schedule block `raw_text` output in render order.
+- Schedule Text includes a top search bar with the same matching, navigation, highlight, and status semantics as Transfer Editor search.
+- Schedule Text includes bottom mode controls with `Original Names` default and `Missionary Titles` alternative.
+- In `Missionary Titles` mode, names use `Title`-based formatting (`Elder`/`Sister`/`BLANK`) with shared-last-name rule.
+- Toggling name mode preserves query and updates search results on the current text.
 - After `Clear Dataset`, Schedule Text shows empty-state guidance.
 - After successful `Replace Dataset`, Schedule Text refreshes automatically from regenerated schedule output.
 

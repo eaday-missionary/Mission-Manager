@@ -318,8 +318,9 @@ class MissionManagerApp:
     def refresh_schedule_outputs(self, note: str | None = None) -> None:
         blocks = self.service.get_schedule_document()
         conflicts = self.service.list_schedule_conflicts()
+        people = self.service.list_people()
         self.transfer_view.set_schedule(blocks, conflicts, note=note)
-        self.schedule_text_view.set_schedule(blocks, note=note)
+        self.schedule_text_view.set_schedule(blocks, note=note, people=people)
 
     def refresh_transfer_editor(self, note: str | None = None) -> None:
         # Backward-compatible alias for existing call sites/tests.
@@ -345,10 +346,14 @@ class MissionManagerApp:
         return True
 
     def _focus_transfer_search(self, _event: tk.Event) -> str | None:
-        if self.notebook.select() != str(self.transfer_view):
-            return None
-        self.transfer_view.focus_search()
-        return "break"
+        selected_tab = self.notebook.select()
+        if selected_tab == str(self.transfer_view):
+            self.transfer_view.focus_search()
+            return "break"
+        if selected_tab == str(self.schedule_text_view):
+            self.schedule_text_view.focus_search()
+            return "break"
+        return None
 
     def create_schedule(self) -> None:
         warning = (

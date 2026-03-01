@@ -46,9 +46,10 @@ All records imported from Excel must map to this contract. Every field label mus
 | 2nd Departure Time | Military Time Value (24h HH:mm) |
 | 2nd Arrival Terminal | String |
 | 2nd Arrival Time | Military Time Value (24h HH:mm) |
+| Title | String |
 
 Value display rules:
-- `FR-028` Must display all 19 field labels for each person in detail view and structured row/table contexts.
+- `FR-028` Must display all 20 field labels for each person in detail view and structured row/table contexts.
 - `FR-029` Must render missing values as `-`.
 - `FR-030` Must treat time values as strict `HH:mm` for validation, sorting, and display.
 
@@ -80,7 +81,7 @@ Navigation model:
 - `FR-010` Must support full dataset reset/replace behind confirmation safeguards.
 - `UX-001` Must preserve user context (search/filter/sort/page position) when returning from detail view.
 - `UX-002` Should prefer progressive disclosure: show advanced controls only when needed.
-- `FR-031` Must support global search across all 19 fields using case-insensitive contains matching.
+- `FR-031` Must support global search across all 20 fields using case-insensitive contains matching.
 - `FR-032` Must set default list sorting to `Current Zone` in alphabetical order.
 - `FR-033` Must support filter/sort controls for: `Current Area`, `New Zone`, `New Area`, `First Name` (A-Z), `Last Name` (A-Z), `Departure Time` (earliest-latest), `Arrival Time` (earliest-latest), `Second Leg?` (yes/no), `2nd Departure Time` (earliest-latest), and `2nd Arrival Time` (earliest-latest).
 - `FR-034` Must interpret `Second Leg?` as yes/no filter values.
@@ -102,7 +103,7 @@ Navigation model:
 - `FR-037` Must refresh list results automatically as users type, sort, or change filters (no manual refresh action).
 - `FR-038` Must show active sort/filter indicators clearly.
 - `FR-040` Must provide two dashboard table modes:
-  - `Full View`: auto-fit all 19 columns into available width when possible; if viewport is constrained, show horizontal-scroll fallback so all columns remain accessible.
+  - `Full View`: auto-fit all 20 columns into available width when possible; if viewport is constrained, show horizontal-scroll fallback so all columns remain accessible.
   - `Expanded View`: denser table with horizontal scrolling for full column access.
 - `FR-053` Must open dashboard table in `Full View` by default on app launch and dataset load.
 - `FR-043` Must keep `Full View` and `Expanded View` controls visible at the minimum supported app size (`1100x680`).
@@ -114,12 +115,13 @@ Navigation model:
 - `FR-018` Must display all editable fields for one selected person.
 - `FR-019` Must validate required fields before apply and show inline errors.
 - `FR-020` Must show inline success feedback after apply, persist changes locally, and return to the previously active tab (`Dashboard` or `Transfer Editor`).
-- `FR-039` Must show all 19 data labels with `-` where a value is missing.
+- `FR-039` Must show all 20 data labels with `-` where a value is missing.
 - `FR-041` Must provide vertical scrolling in Person Detail so all fields are reachable at smaller window sizes.
 - `FR-042` Must place `Apply` and `Cancel` in a fixed right-side action panel that remains visible while fields scroll.
 - `FR-048` Must show `Add` (not `Apply`) when entering Person Detail without a selected person.
 - `FR-049` Must support blank-field add mode in Person Detail with the same validation and normalization rules as edit apply mode.
 - `FR-050` Must return to Dashboard and select the new row after successful add.
+- `FR-057` Must include editable `Title` in Person Detail and show it in dashboard columns; blank values display as `-`.
 
 ### Data Management State
 - `FR-021` Must show current dataset status (loaded timestamp, approximate count).
@@ -162,11 +164,11 @@ Navigation model:
 - Invalid file types, malformed files, or missing required columns show actionable blocking errors.
 
 ### Search, Filter, Sort
-- Search updates letter-by-letter and uses case-insensitive contains matching across all 19 fields.
+- Search updates letter-by-letter and uses case-insensitive contains matching across all 20 fields.
 - Default load order is `Current Zone` alphabetical.
 - Supported filters/sorts include `Current Area`, `New Zone`, `New Area`, `First Name`, `Last Name`, `Departure Time`, `Arrival Time`, `Second Leg?`, `2nd Departure Time`, and `2nd Arrival Time`.
 - Time fields sort in true chronological order using `HH:mm`.
-- Full View prioritizes showing all 19 columns simultaneously and falls back to horizontal scrolling when the window is constrained; Expanded View exposes all columns via horizontal scroll.
+- Full View prioritizes showing all 20 columns simultaneously and falls back to horizontal scrolling when the window is constrained; Expanded View exposes all columns via horizontal scroll.
 - Dashboard opens in `Full View` by default and allows switching to `Expanded View` on demand.
 - Clicking `Full View` always applies full mode; clicking `Expanded View` always applies expanded mode.
 - Horizontal trackpad/wheel scrolling in overflow states moves at practical speed rather than tiny incremental motion.
@@ -174,7 +176,7 @@ Navigation model:
 ### Detail Edit
 - User can open a person record, edit valid fields, apply, and immediately return to the previous tab context with updated data.
 - User can reach every detail field via vertical scroll while keeping `Apply`/`Cancel` visible in the right action panel.
-- All 19 labels are always shown; missing values display as `-`.
+- All 20 labels are always shown; missing values display as `-`.
 - Invalid edits are blocked with field-level error guidance.
 - User can enter add mode with blank fields and click `Add` to create a new person without importing a spreadsheet.
 - Successful add navigates to Dashboard and selects the newly created row.

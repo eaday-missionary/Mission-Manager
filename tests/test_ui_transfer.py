@@ -10,13 +10,20 @@ from mission_manager.ui.schedule_text_view import ScheduleTextView
 from mission_manager.ui.transfer_editor_view import TransferEditorView
 
 
-def _person_row(person_id: str, first_name: str, last_name: str) -> SimpleNamespace:
+def _person_row(
+    person_id: str,
+    first_name: str,
+    last_name: str,
+    *,
+    title: str | None = None,
+) -> SimpleNamespace:
     payload = {field: None for field in PERSON_FIELDS}
     payload.update(
         {
             "id": person_id,
             "first_name": first_name,
             "last_name": last_name,
+            "title": title,
             "current_zone": "Zone A",
             "current_area": "Area 1",
             "departure_time": "08:00",
@@ -234,6 +241,160 @@ def test_schedule_text_view_combines_blocks_in_render_order() -> None:
     assert "FIRST" in rendered
     assert "SECOND" in rendered
     assert rendered.index("FIRST") < rendered.index("SECOND")
+    root.destroy()
+
+
+def test_schedule_text_view_live_search_highlight_and_wrap() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = ScheduleTextView(root)
+    view.set_schedule(
+        [
+            _block("b1", "1", "Alpha Seoul route\n---------------", 1),
+            _block("b2", "2", "Secondary SEOUL route\n---------------", 2),
+        ]
+    )
+
+    view._search_query.set("seoul")
+    view._refresh_search_matches()
+    assert view._search_status_var.get() == "1/2"
+    assert len(view.text_widget.tag_ranges("search_match_all")) == 4
+    assert len(view.text_widget.tag_ranges("search_match_active")) == 2
+
+    view._goto_next_match()
+    assert view._search_status_var.get() == "2/2"
+    view._goto_next_match()
+    assert view._search_status_var.get() == "1/2"
+    view._goto_previous_match()
+    assert view._search_status_var.get() == "2/2"
+
+    view._search_query.set("")
+    view._refresh_search_matches()
+    assert view._search_status_var.get() == "0 matches"
+    assert len(view.text_widget.tag_ranges("search_match_all")) == 0
+    assert len(view.text_widget.tag_ranges("search_match_active")) == 0
+    root.destroy()
+
+
+def test_schedule_text_mode_defaults_to_original_names() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = ScheduleTextView(root)
+    assert view._name_mode == "original"
+    assert view.original_names_btn.cget("style") == "ModeActive.TButton"
+    assert view.missionary_titles_btn.cget("style") == "Mode.TButton"
+    root.destroy()
+
+
+def test_schedule_text_missionary_mode_replaces_unique_last_name_as_title_last_name() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = ScheduleTextView(root)
+    person = _person_row("person-1", "John", "Kim", title="E")
+    view.set_schedule(
+        [
+            _block("b1", "person-1", "John Kim\nMeet John Kim at gate.\n---------------", 1),
+        ],
+        people=[person],
+    )
+
+    view._set_name_mode("missionary")
+    rendered = view.text_widget.get("1.0", "end-1c")
+    assert "Elder Kim" in rendered
+    assert "John Kim" not in rendered
+    root.destroy()
+
+
+def test_schedule_text_missionary_mode_keeps_first_name_when_last_name_is_shared() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = ScheduleTextView(root)
+    people = [
+        _person_row("person-1", "John", "Kim", title="E"),
+        _person_row("person-2", "Mina", "Kim", title="S"),
+    ]
+    view.set_schedule(
+        [
+            _block("b1", "person-1", "John Kim meets Mina Kim.\n---------------", 1),
+        ],
+        people=people,
+    )
+
+    view._set_name_mode("missionary")
+    rendered = view.text_widget.get("1.0", "end-1c")
+    assert "Elder John Kim meets Sister Mina Kim." in rendered
+    assert "Elder Kim" not in rendered
+    assert "Sister Kim" not in rendered
+    root.destroy()
+
+
+def test_schedule_text_missionary_mode_blank_and_invalid_title_map_to_blank() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = ScheduleTextView(root)
+    people = [
+        _person_row("person-1", "John", "Park", title="-"),
+        _person_row("person-2", "Mina", "Lee", title="X"),
+    ]
+    view.set_schedule(
+        [
+            _block("b1", "person-1", "John Park then Mina Lee.\n---------------", 1),
+        ],
+        people=people,
+    )
+
+    view._set_name_mode("missionary")
+    rendered = view.text_widget.get("1.0", "end-1c")
+    assert "BLANK Park then BLANK Lee." in rendered
+    assert "John Park" not in rendered
+    assert "Mina Lee" not in rendered
+    root.destroy()
+
+
+def test_schedule_text_toggle_preserves_search_query_and_recomputes_matches() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = ScheduleTextView(root)
+    person = _person_row("person-1", "John", "Kim", title="E")
+    view.set_schedule(
+        [
+            _block("b1", "person-1", "John Kim\n---------------", 1),
+        ],
+        people=[person],
+    )
+    view._search_query.set("elder")
+    view._refresh_search_matches()
+    assert view._search_status_var.get() == "0 matches"
+
+    view._set_name_mode("missionary")
+    assert view._search_query.get() == "elder"
+    assert view._search_status_var.get() == "1/1"
+    assert view.original_names_btn.cget("style") == "Mode.TButton"
+    assert view.missionary_titles_btn.cget("style") == "ModeActive.TButton"
     root.destroy()
 
 
@@ -650,7 +811,7 @@ def test_transfer_card_double_click_opens_person_callback() -> None:
     root.destroy()
 
 
-def test_app_ctrl_f_focuses_transfer_search_only_on_transfer_tab(monkeypatch) -> None:
+def test_app_ctrl_f_focuses_search_on_active_schedule_tab(monkeypatch) -> None:
     try:
         root = tk.Tk()
     except tk.TclError:
@@ -660,22 +821,90 @@ def test_app_ctrl_f_focuses_transfer_search_only_on_transfer_tab(monkeypatch) ->
     monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: _FakeService())
     app = MissionManagerApp(root)
     root.update_idletasks()
-    focus_calls = {"count": 0}
+    focus_calls = {"transfer": 0, "schedule": 0}
 
-    def _mark_focus() -> None:
-        focus_calls["count"] += 1
+    def _mark_transfer_focus() -> None:
+        focus_calls["transfer"] += 1
 
-    monkeypatch.setattr(app.transfer_view, "focus_search", _mark_focus)
+    def _mark_schedule_focus() -> None:
+        focus_calls["schedule"] += 1
+
+    monkeypatch.setattr(app.transfer_view, "focus_search", _mark_transfer_focus)
+    monkeypatch.setattr(app.schedule_text_view, "focus_search", _mark_schedule_focus)
 
     app.notebook.select(app.transfer_view)
     handled = app._focus_transfer_search(None)  # type: ignore[arg-type]
     assert handled == "break"
-    assert focus_calls["count"] == 1
+    assert focus_calls["transfer"] == 1
+    assert focus_calls["schedule"] == 0
+
+    app.notebook.select(app.schedule_text_view)
+    handled = app._focus_transfer_search(None)  # type: ignore[arg-type]
+    assert handled == "break"
+    assert focus_calls["transfer"] == 1
+    assert focus_calls["schedule"] == 1
 
     app.notebook.select(app.dashboard_view)
     handled = app._focus_transfer_search(None)  # type: ignore[arg-type]
     assert handled is None
-    assert focus_calls["count"] == 1
+    assert focus_calls["transfer"] == 1
+    assert focus_calls["schedule"] == 1
+    root.destroy()
+
+
+def test_app_refresh_schedule_outputs_passes_people_to_schedule_text_view(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    fake_service = _FakeService()
+    fake_service.people = [_person_row("person-1", "Mina", "Cho", title="S")]
+    fake_service.schedule_blocks = [
+        _block("block-1", "person-1", "Mina Cho\n---------------", 1)
+    ]
+    monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: fake_service)
+    app = MissionManagerApp(root)
+    captured: dict[str, list | None] = {"people": None}
+
+    original_set_schedule = app.schedule_text_view.set_schedule
+
+    def _capture_set_schedule(blocks, note=None, people=None):
+        captured["people"] = people
+        return original_set_schedule(blocks, note=note, people=people)
+
+    monkeypatch.setattr(app.schedule_text_view, "set_schedule", _capture_set_schedule)
+    app.refresh_schedule_outputs()
+    assert captured["people"] == fake_service.people
+    root.destroy()
+
+
+def test_schedule_text_missionary_mode_does_not_change_transfer_editor_cards(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    fake_service = _FakeService()
+    fake_service.people = [_person_row("person-1", "John", "Kim", title="E")]
+    fake_service.schedule_blocks = [
+        _block("block-1", "person-1", "John Kim\n---------------", 1)
+    ]
+    monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: fake_service)
+    app = MissionManagerApp(root)
+    root.update_idletasks()
+
+    app.schedule_text_view._set_name_mode("missionary")
+    schedule_rendered = app.schedule_text_view.text_widget.get("1.0", "end-1c")
+    assert "Elder Kim" in schedule_rendered
+
+    assert app.transfer_view._ordered_block_ids
+    first_block_id = app.transfer_view._ordered_block_ids[0]
+    transfer_text = app.transfer_view._block_text_widgets[first_block_id].get("1.0", "end-1c")
+    assert "John Kim" in transfer_text
+    assert "Elder Kim" not in transfer_text
     root.destroy()
 
 

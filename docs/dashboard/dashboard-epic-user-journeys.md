@@ -32,10 +32,11 @@ Every person record in every journey uses this schema:
 | 2nd Departure Time | Military Time Value (24h HH:mm) |
 | 2nd Arrival Terminal | String |
 | 2nd Arrival Time | Military Time Value (24h HH:mm) |
+| Title | String |
 
 Shared display/search rules:
 - Missing values render as `-` while labels remain visible.
-- All 19 fields are individually searchable.
+- All 20 fields are individually searchable.
 - Default list sorting is `Current Zone` alphabetical.
 
 ## Journey Format
@@ -57,7 +58,7 @@ Each journey uses this schema:
 - `System Response`:
   - Shows loading state during parse.
   - Displays validation summary (records imported, warnings/errors).
-  - Validates required schema columns for the 19-field contract.
+  - Validates required schema columns for the 20-field contract.
   - Routes to Main Dashboard after successful commit.
 - `Outcome`: Dataset is available for search/filter/sort.
 - `Failure Path`: Invalid file or parse/schema failure keeps user on import screen with actionable error and retry option.
@@ -86,7 +87,7 @@ Each journey uses this schema:
   4. Staff user selects target record.
 - `System Response`:
   - Updates results and count in near real time with case-insensitive contains matching.
-  - Searches across all 19 fields, including yes/no boolean values.
+  - Searches across all 20 fields, including yes/no boolean values.
   - Highlights empty/no-match state if none found.
 - `Outcome`: Correct record opened in detail view.
 - `Failure Path`: No results state offers clear action to reset query or switch fields.
@@ -116,7 +117,7 @@ Each journey uses this schema:
 - `Preconditions`: User is on list view with at least one record.
 - `Steps`:
   1. Staff user opens person detail view.
-  2. Staff user reviews all 19 labeled fields and scrolls through the form as needed.
+  2. Staff user reviews all 20 labeled fields and scrolls through the form as needed.
   3. Staff user edits one or more fields and clicks Apply.
 - `System Response`:
   - Keeps `Apply` and `Cancel` visible in a fixed right-side action panel while fields scroll.
@@ -165,7 +166,7 @@ Each journey uses this schema:
 - `Preconditions`: User attempts import/append/replace with problematic file.
 - `Steps`:
   1. Staff user uploads file.
-  2. System flags missing/invalid columns from required 19-field schema.
+  2. System flags missing/invalid columns from required 20-field schema.
   3. Staff user reviews guidance, fixes file externally, retries import.
 - `System Response`:
   - Shows specific problematic columns/rows where possible.
@@ -250,14 +251,14 @@ Each journey uses this schema:
 - `UX-011` Must provide clear recovery actions in every error state.
 - `UX-012` Should preserve user context when moving between list and detail views.
 - `UX-013` Must avoid dead-end states; every major error includes a next action.
-- `UX-014` Must maintain 19-field label visibility in all record detail states.
-- `UX-015` Must keep live global search available across all records and all 19 fields.
+- `UX-014` Must maintain 20-field label visibility in all record detail states.
+- `UX-015` Must keep live global search available across all records and all 20 fields.
 - `UX-016` Must render missing values as `-` consistently across views.
 
 ## Journey Acceptance Checklist
 - [ ] Persona usage is staff-only, with no ordinary missionary references.
 - [ ] Every journey includes Goal, Preconditions, Steps, System Response, Outcome, and Failure Path.
-- [ ] All 19 schema fields are documented consistently.
+- [ ] All 20 schema fields are documented consistently.
 - [ ] Missing values are shown as `-` while labels remain visible.
 - [ ] Every field is individually searchable.
 - [ ] Default `Current Zone` alphabetical sort is documented.

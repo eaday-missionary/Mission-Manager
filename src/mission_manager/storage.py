@@ -74,6 +74,7 @@ class StorageRepository:
                 id TEXT PRIMARY KEY,
                 first_name TEXT NOT NULL,
                 last_name TEXT NOT NULL,
+                title TEXT,
                 current_companion TEXT,
                 new_companion TEXT,
                 current_zone TEXT,
@@ -171,7 +172,16 @@ class StorageRepository:
             conn.execute("INSERT OR IGNORE INTO dataset_meta(key, value) VALUES(?, ?)", (key, value))
 
     def _migrate_schema(self, conn: sqlite3.Connection) -> None:
+        self._migrate_people_table(conn)
         self._migrate_transfer_schedule_blocks(conn)
+
+    def _migrate_people_table(self, conn: sqlite3.Connection) -> None:
+        rows = conn.execute("PRAGMA table_info(people)").fetchall()
+        if not rows:
+            return
+        columns = {row["name"] for row in rows}
+        if "title" not in columns:
+            conn.execute("ALTER TABLE people ADD COLUMN title TEXT")
 
     def _migrate_transfer_schedule_blocks(self, conn: sqlite3.Connection) -> None:
         rows = conn.execute("PRAGMA table_info(transfer_schedule_blocks)").fetchall()
@@ -272,13 +282,13 @@ class StorageRepository:
         conn.execute(
             """
             INSERT INTO people(
-                id, first_name, last_name, current_companion, new_companion, current_zone,
+                id, first_name, last_name, title, current_companion, new_companion, current_zone,
                 current_area, new_zone, new_area, staying, pre_travel, departure_terminal,
                 departure_time, arrival_terminal, arrival_time, second_leg,
                 second_departure_terminal, second_departure_time, second_arrival_terminal,
                 second_arrival_time, created_at, updated_at, source_file_name, source_row_number, dataset_version
             ) VALUES(
-                :id, :first_name, :last_name, :current_companion, :new_companion, :current_zone,
+                :id, :first_name, :last_name, :title, :current_companion, :new_companion, :current_zone,
                 :current_area, :new_zone, :new_area, :staying, :pre_travel, :departure_terminal,
                 :departure_time, :arrival_terminal, :arrival_time, :second_leg,
                 :second_departure_terminal, :second_departure_time, :second_arrival_terminal,
@@ -295,7 +305,7 @@ class StorageRepository:
         conn.execute(
             """
             UPDATE people SET
-                first_name=:first_name, last_name=:last_name,
+                first_name=:first_name, last_name=:last_name, title=:title,
                 current_companion=:current_companion, new_companion=:new_companion,
                 current_zone=:current_zone, current_area=:current_area,
                 new_zone=:new_zone, new_area=:new_area,

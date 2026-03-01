@@ -9,6 +9,7 @@ Dashboard epic project requirements:
 -- Once the information is input into the project, it will automatically save locally on the device so that the user does not have to input the excel spreadsheet every single time. There should also be features that allow the user to erase all data and add a new spreadsheet, or to add onto the existing data.
 -- The user will be able to view each person individually, sort the people displayed with filters, and see and be able to edit each individual's information by clicking on them.
 -- The dashboard must also support adding a person from scratch without importing a spreadsheet by using an `Add New` action from the dashboard and no-data onboarding state.
+-- The canonical dashboard/import schema must include a `Title` field, displayed in dashboard columns and editable in `Person Detail`.
 -- The dashboard table must open in `Full View` by default.
 -- Horizontal trackpad/wheel scrolling in dashboard table overflow states must move at practical speed, especially in `Expanded View`.
 -- Successful `Apply`, `Add`, `Import`, `Append`, and `Replace` operations must automatically regenerate transfer-derived outputs (Transfer Editor and Schedule Text).

@@ -71,3 +71,26 @@ def test_detail_view_switches_between_add_and_apply_modes() -> None:
     view._submit()
     assert apply_calls["count"] == 1
     root.destroy()
+
+
+def test_detail_view_title_field_is_editable_and_dash_maps_to_blank() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = DetailView(root)
+    assert "title" in view.entries
+
+    title_entry = view.entries["title"]
+    title_entry.delete(0, "end")
+    title_entry.insert(0, "-")
+    patch = view._build_patch()
+    assert patch["title"] == ""
+
+    title_entry.delete(0, "end")
+    title_entry.insert(0, "E")
+    patch = view._build_patch()
+    assert patch["title"] == "E"
+    root.destroy()

@@ -20,6 +20,7 @@ class PersonRecord:
     id: str
     first_name: str
     last_name: str
+    title: str | None = None
     current_companion: str | None = None
     new_companion: str | None = None
     current_zone: str | None = None
