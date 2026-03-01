@@ -54,16 +54,120 @@ def _person(
     )
 
 
-def test_render_transfer_schedule_includes_required_separator_and_order() -> None:
+def _person_blocks(raw_result) -> list:
+    return [block for block in raw_result.blocks if block.block_kind == "person"]
+
+
+def test_render_transfer_schedule_emits_zone_area_headers_and_15_dash_separator() -> None:
     people = [
-        _person(pid="1", first="John", last="Doe", current_companion="Jane Roe"),
-        _person(pid="2", first="Jane", last="Roe", current_companion="John Doe"),
+        _person(
+            pid="1",
+            first="John",
+            last="Doe",
+            current_companion="Jane Roe",
+            zone="Zone Alpha",
+            area="Area East",
+        ),
+        _person(
+            pid="2",
+            first="Jane",
+            last="Roe",
+            current_companion="John Doe",
+            zone="Zone Alpha",
+            area="Area East",
+        ),
     ]
     result = render_transfer_schedule(people)
+
     assert not result.errors
-    assert len(result.blocks) == 2
-    assert result.blocks[0].raw_text.endswith("-----------------------------------")
-    assert abs(result.blocks[0].render_order - result.blocks[1].render_order) == 1
+    assert result.blocks[0].block_kind == "zone_header"
+    assert result.blocks[0].raw_text == "---Zone Alpha---"
+    assert result.blocks[1].block_kind == "area_header"
+    assert result.blocks[1].raw_text == "------------------------- Area East -------------------------"
+
+    person_blocks = _person_blocks(result)
+    assert len(person_blocks) == 2
+    assert all(block.raw_text.endswith("---------------") for block in person_blocks)
+
+
+def test_render_transfer_schedule_preserves_zone_first_appearance_order() -> None:
+    people = [
+        _person(pid="1", first="A", last="One", zone="Zone B", area="Area 1"),
+        _person(pid="2", first="B", last="Two", zone="Zone A", area="Area 2"),
+        _person(pid="3", first="C", last="Three", zone="Zone B", area="Area 3"),
+    ]
+    result = render_transfer_schedule(people)
+    zone_headers = [block.raw_text for block in result.blocks if block.block_kind == "zone_header"]
+    assert zone_headers == ["---Zone B---", "---Zone A---"]
+
+
+def test_render_transfer_schedule_subway_contains_cleans_route_text() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            new_companion="Chris Lee",
+            dep_terminal="Suji Subway",
+            arr_terminal="Seoul Subway",
+            arr_time="09:30",
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+        _person(pid="3", first="Chris", last="Lee", current_companion="Dana Shin"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "Travel to Seoul through Suji. Leave in time to arrive there at 09:30" in actor.raw_text
+    assert "Travel to Seoul Subway through Suji Subway." not in actor.raw_text
+
+
+def test_render_transfer_schedule_second_leg_subway_uses_second_leg_fields() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            new_companion="Chris Lee",
+            dep_terminal="Seoul Station",
+            arr_terminal="Daegu",
+            arr_time="10:00",
+            second_leg=True,
+            dep2_terminal="Daejeon Subway",
+            arr2_terminal="Busan Subway",
+            arr2_time="13:15",
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+        _person(pid="3", first="Chris", last="Lee", current_companion="Dana Shin"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "Second leg of travel:" in actor.raw_text
+    assert "Travel to Busan through Daejeon. Leave in time to arrive there at 13:15" in actor.raw_text
+
+
+def test_render_transfer_schedule_blank_departure_step7_uses_dash_placeholder() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            dep_terminal="-",
+            staying=False,
+        ),
+        _person(
+            pid="2",
+            first="Ben",
+            last="Park",
+            current_companion="Alex Kim",
+            dep_terminal="Seoul Station",
+        ),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "Travel to - with Ben Park." in actor.raw_text
 
 
 def test_render_transfer_schedule_missing_time_uses_0000() -> None:
@@ -99,7 +203,7 @@ def test_render_transfer_schedule_missing_time_uses_0000() -> None:
         ),
     ]
     result = render_transfer_schedule(people)
-    text = "\n".join(block.raw_text for block in result.blocks)
+    text = "\n".join(block.raw_text for block in _person_blocks(result))
     assert "00:00" in text
 
 
@@ -124,61 +228,29 @@ def test_split_companion_names_supports_ampersand_and_comma() -> None:
     assert split_companion_names(raw) == ["Alpha One", "Beta Two", "Gamma Three"]
 
 
-def test_reversed_name_lookup_resolves_companions() -> None:
+def test_render_transfer_schedule_trainee_rows_are_rendered_without_lookup_error() -> None:
     people = [
         _person(
             pid="1",
+            first="Trainee",
+            last="",
+            current_companion="Trainee",
+            new_companion="Trainee",
+            zone="Zone A",
+            area="Area T",
+        ),
+        _person(
+            pid="2",
             first="Alex",
             last="Kim",
-            current_companion="Park Ben",
-            new_companion="Lee Chris",
-            dep_terminal="Subway",
-            staying=False,
+            current_companion="Trainee",
+            new_companion="Trainee",
+            zone="Zone A",
+            area="Area T",
         ),
-        _person(pid="2", first="Ben", last="Park", new_companion="Chris Lee"),
-        _person(pid="3", first="Chris", last="Lee", dep_time="09:15"),
     ]
     result = render_transfer_schedule(people)
-    actor = next(block for block in result.blocks if block.person_id == "1")
-    assert "arrive there at 09:15" in actor.raw_text
-    assert not any(err.code == "DATA_CONFLICT" and err.person_id == "1" for err in result.errors)
-
-
-def test_nccc_time_uses_earliest_non_blank_from_all_current_companions() -> None:
-    people = [
-        _person(
-            pid="1",
-            first="Actor",
-            last="One",
-            current_companion="Beta Two, Gamma Three",
-            dep_terminal="Subway",
-            staying=False,
-        ),
-        _person(pid="2", first="Beta", last="Two", new_companion="Echo Five"),
-        _person(pid="3", first="Gamma", last="Three", new_companion="Foxtrot Six"),
-        _person(pid="4", first="Echo", last="Five", dep_time="11:00"),
-        _person(pid="5", first="Foxtrot", last="Six", dep_time="09:00"),
-    ]
-    result = render_transfer_schedule(people)
-    actor = next(block for block in result.blocks if block.person_id == "1")
-    assert "arrive there at 09:00" in actor.raw_text
-
-
-def test_nccc_time_uses_0000_only_when_no_candidate_time_exists() -> None:
-    people = [
-        _person(
-            pid="1",
-            first="Actor",
-            last="One",
-            current_companion="Beta Two & Gamma Three",
-            dep_terminal="Subway",
-            staying=False,
-        ),
-        _person(pid="2", first="Beta", last="Two", new_companion="Echo Five"),
-        _person(pid="3", first="Gamma", last="Three", new_companion="Foxtrot Six"),
-        _person(pid="4", first="Echo", last="Five", dep_time=None),
-        _person(pid="5", first="Foxtrot", last="Six", dep_time=None),
-    ]
-    result = render_transfer_schedule(people)
-    actor = next(block for block in result.blocks if block.person_id == "1")
-    assert "arrive there at 00:00" in actor.raw_text
+    person_ids = {block.person_id for block in _person_blocks(result)}
+    assert "1" in person_ids
+    assert "2" in person_ids
+    assert not any(err.code == "DATA_CONFLICT" and err.field == "current_companion" for err in result.errors)

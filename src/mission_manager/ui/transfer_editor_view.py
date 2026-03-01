@@ -183,25 +183,34 @@ class TransferEditorView(ttk.Frame):
         self.cards_frame.columnconfigure(0, weight=1)
 
         row = 1
-        current_zone: str | None = None
         for block in sorted(blocks, key=lambda b: b.render_order):
-            zone = (block.current_zone or "-").strip() or "-"
-            if zone != current_zone:
+            if block.block_kind == "zone_header":
                 zone_label = ttk.Label(
                     self.cards_frame,
-                    text=f"==={zone}===",
+                    text=block.raw_text,
                     foreground="#9CC0FF",
                 )
                 zone_label.grid(row=row, column=0, sticky="w", pady=(0, 6))
                 self._bind_cards_scroll_events_recursive(zone_label)
                 row += 1
-                current_zone = zone
+                continue
+
+            if block.block_kind == "area_header":
+                area_label = ttk.Label(
+                    self.cards_frame,
+                    text=block.raw_text,
+                    foreground="#CFE2FF",
+                )
+                area_label.grid(row=row, column=0, sticky="w", pady=(0, 6))
+                self._bind_cards_scroll_events_recursive(area_label)
+                row += 1
+                continue
 
             card = ttk.Frame(self.cards_frame, style="Card.TFrame", padding=8)
             card.grid(row=row, column=0, sticky="ew", pady=(0, 8))
             card.columnconfigure(0, weight=1)
 
-            title = ttk.Label(card, text=block.person_display_name, style="Info.TLabel")
+            title = ttk.Label(card, text=block.person_display_name or "-", style="Info.TLabel")
             title.grid(row=0, column=0, sticky="w", pady=(0, 4))
 
             block_text = block.raw_text.rstrip("\n")
@@ -242,7 +251,8 @@ class TransferEditorView(ttk.Frame):
 
             self._block_frames[block.block_id] = card
             self._block_text_widgets[block.block_id] = text_widget
-            self._block_person_ids[block.block_id] = block.person_id
+            if block.person_id:
+                self._block_person_ids[block.block_id] = block.person_id
             self._ordered_block_ids.append(block.block_id)
             row += 1
 

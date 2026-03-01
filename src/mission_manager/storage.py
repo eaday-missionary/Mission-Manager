@@ -50,6 +50,8 @@ class StorageRepository:
         try:
             with self._connect() as conn:
                 self._create_schema(conn)
+                self._migrate_schema(conn)
+                self._set_meta(conn, schema_version=str(SCHEMA_VERSION))
                 conn.commit()
                 conn.execute("PRAGMA quick_check")
         except sqlite3.DatabaseError:
@@ -61,6 +63,8 @@ class StorageRepository:
             self.recovery_notice = f"Corrupt local database was moved to {backup.name}."
             with self._connect() as conn:
                 self._create_schema(conn)
+                self._migrate_schema(conn)
+                self._set_meta(conn, schema_version=str(SCHEMA_VERSION))
                 conn.commit()
 
     def _create_schema(self, conn: sqlite3.Connection) -> None:
@@ -109,13 +113,14 @@ class StorageRepository:
             CREATE TABLE IF NOT EXISTS transfer_schedule_blocks (
                 block_id TEXT PRIMARY KEY,
                 schedule_version INTEGER NOT NULL,
-                person_id TEXT NOT NULL,
-                person_display_name TEXT NOT NULL,
+                person_id TEXT,
+                person_display_name TEXT,
                 current_zone TEXT,
-                starting_companionship_key TEXT NOT NULL,
+                starting_companionship_key TEXT,
                 render_order INTEGER NOT NULL,
                 raw_text TEXT NOT NULL,
                 source_person_updated_at TEXT,
+                block_kind TEXT NOT NULL DEFAULT 'person',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -164,6 +169,67 @@ class StorageRepository:
             "source_file_name": "",
         }.items():
             conn.execute("INSERT OR IGNORE INTO dataset_meta(key, value) VALUES(?, ?)", (key, value))
+
+    def _migrate_schema(self, conn: sqlite3.Connection) -> None:
+        self._migrate_transfer_schedule_blocks(conn)
+
+    def _migrate_transfer_schedule_blocks(self, conn: sqlite3.Connection) -> None:
+        rows = conn.execute("PRAGMA table_info(transfer_schedule_blocks)").fetchall()
+        if not rows:
+            return
+
+        columns = {row["name"]: dict(row) for row in rows}
+        needs_rebuild = (
+            "block_kind" not in columns
+            or columns.get("person_id", {}).get("notnull", 0) == 1
+            or columns.get("person_display_name", {}).get("notnull", 0) == 1
+            or columns.get("starting_companionship_key", {}).get("notnull", 0) == 1
+        )
+        if not needs_rebuild:
+            return
+
+        conn.execute("DROP INDEX IF EXISTS idx_transfer_blocks_schedule_order")
+        conn.execute("DROP INDEX IF EXISTS idx_transfer_blocks_person_schedule")
+        conn.execute("ALTER TABLE transfer_schedule_blocks RENAME TO transfer_schedule_blocks_legacy")
+        conn.execute(
+            """
+            CREATE TABLE transfer_schedule_blocks (
+                block_id TEXT PRIMARY KEY,
+                schedule_version INTEGER NOT NULL,
+                person_id TEXT,
+                person_display_name TEXT,
+                current_zone TEXT,
+                starting_companionship_key TEXT,
+                render_order INTEGER NOT NULL,
+                raw_text TEXT NOT NULL,
+                source_person_updated_at TEXT,
+                block_kind TEXT NOT NULL DEFAULT 'person',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO transfer_schedule_blocks(
+                block_id, schedule_version, person_id, person_display_name, current_zone,
+                starting_companionship_key, render_order, raw_text, source_person_updated_at,
+                block_kind, created_at, updated_at
+            )
+            SELECT
+                block_id, schedule_version, person_id, person_display_name, current_zone,
+                starting_companionship_key, render_order, raw_text, source_person_updated_at,
+                'person', created_at, updated_at
+            FROM transfer_schedule_blocks_legacy
+            """
+        )
+        conn.execute("DROP TABLE transfer_schedule_blocks_legacy")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transfer_blocks_schedule_order ON transfer_schedule_blocks(schedule_version, render_order)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transfer_blocks_person_schedule ON transfer_schedule_blocks(person_id, schedule_version)"
+        )
 
     def dataset_state(self) -> DatasetState:
         with self._connect() as conn:
@@ -404,8 +470,8 @@ class StorageRepository:
                     """
                     INSERT INTO transfer_schedule_blocks(
                         block_id, schedule_version, person_id, person_display_name, current_zone,
-                        starting_companionship_key, render_order, raw_text, source_person_updated_at, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        starting_companionship_key, render_order, raw_text, source_person_updated_at, block_kind, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         block.block_id,
@@ -417,6 +483,7 @@ class StorageRepository:
                         block.render_order,
                         block.raw_text,
                         block.source_person_updated_at,
+                        block.block_kind,
                         now,
                         now,
                     ),
@@ -524,7 +591,7 @@ class StorageRepository:
             rows = conn.execute(
                 """
                 SELECT block_id, person_id, person_display_name, current_zone, starting_companionship_key,
-                       render_order, raw_text, created_at, updated_at, source_person_updated_at
+                       render_order, raw_text, block_kind, created_at, updated_at, source_person_updated_at
                 FROM transfer_schedule_blocks
                 WHERE schedule_version = ?
                 ORDER BY render_order ASC
@@ -540,6 +607,7 @@ class StorageRepository:
                 starting_companionship_key=row["starting_companionship_key"],
                 render_order=row["render_order"],
                 raw_text=row["raw_text"],
+                block_kind=row["block_kind"],
                 created_at=row["created_at"],
                 updated_at=row["updated_at"],
                 source_person_updated_at=row["source_person_updated_at"],

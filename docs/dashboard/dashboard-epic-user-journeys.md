@@ -71,6 +71,7 @@ Each journey uses this schema:
 - `System Response`:
   - Restores dataset and displays current record count.
   - Applies default `Current Zone` alphabetical sorting.
+  - Opens dashboard table in `Full View` by default.
   - Optionally displays last updated timestamp.
 - `Outcome`: Staff user can continue tasks instantly.
 - `Failure Path`: Corrupt local data triggers clear recovery notice and route to import flow.
@@ -104,6 +105,7 @@ Each journey uses this schema:
   - Sort direction and active sort key remain visible.
   - `Full View` / `Expanded View` controls remain visible at normal startup size and show active mode with selected styling.
   - `Full View` auto-fits columns first and uses horizontal-scroll fallback when viewport width is constrained.
+  - Horizontal trackpad/wheel scrolling in overflow states moves at practical speed (not tiny incremental drift).
   - Clicking a mode button applies that exact mode immediately.
   - Result count updates with each change.
 - `Outcome`: Staff user obtains a stable, narrowed list matching operational needs.
@@ -121,7 +123,7 @@ Each journey uses this schema:
   - Shows `-` for any missing values while preserving labels.
   - Validates required fields.
   - Shows inline errors for invalid values.
-  - On success, confirms apply inline, persists locally, refreshes list data, and returns to the previously active tab.
+  - On success, confirms apply inline, persists locally, auto-regenerates transfer-derived outputs, refreshes list data, and returns to the previously active tab.
 - `Outcome`: Updated values appear in detail and list views.
 - `Failure Path`: Validation errors block apply; user can fix and retry or cancel.
 
@@ -136,6 +138,7 @@ Each journey uses this schema:
   - Validates required columns in append file.
   - Shows estimated added/updated/skipped counts (as supported).
   - Persists merged dataset locally on success.
+  - Automatically regenerates transfer-derived outputs on success.
   - Preserves available sort/filter behaviors after append completes.
 - `Outcome`: Existing records remain; new applicable records added.
 - `Failure Path`: If append fails, original dataset remains intact and user receives retry guidance.
@@ -151,6 +154,8 @@ Each journey uses this schema:
   - Requires explicit confirmation before erase.
   - Validates replacement schema before commit.
   - Replaces local dataset only after successful parse/validation.
+  - Automatically regenerates transfer-derived outputs after successful replacement.
+  - If auto-regeneration fails, preserves prior transfer-derived outputs and shows actionable error feedback.
   - Returns to list with default `Current Zone` alphabetical sorting.
 - `Outcome`: New dataset fully replaces prior dataset.
 - `Failure Path`: Failed replacement does not destroy existing dataset; user remains informed and can retry.
@@ -192,6 +197,8 @@ Each journey uses this schema:
 - `System Response`:
   - Cancel exits safely with no data change.
   - Confirm proceeds with clear progress status.
+  - Confirmed clear resets transfer-derived outputs immediately.
+  - Confirmed replace triggers automatic transfer-output regeneration; if regeneration fails, prior schedule output remains visible with an error.
   - If post-confirmation error occurs, system keeps last valid dataset whenever possible.
 - `Outcome`: Destructive actions occur only with explicit user intent.
 - `Failure Path`: Any operation failure is surfaced with clear recovery actions.

@@ -52,9 +52,9 @@
 - print("Travel to " + Departure Terminal + " with " + Current Companion + ".")
 /newline/
 
-8. IF Departure Terminal = "Subway":
-- find their Current Companion, then, find the New Companion of the Current Companion. We will call this person "NCCC". In the list for NCCC, find the Departure Time, and label it as "NCCC_TIME". You will only use this for the following instruction below:
-- print("Travel to _____ through ______. Leave in time to arrive there at " + NCCC_TIME + ",  and meet your new companion, " + New Companion + ".")
+8. IF Departure Terminal.contains("Subway"):
+- remove the "Subway" text from the Departure Terminal value AND the Arrival Terminal value.
+- print("Travel to " + Arrival Terminal + " through " + Departure Terminal + ". Leave in time to arrive there at " + Arrival Time + ",  and meet your new companion, " + New Companion + ".")
 ELSE:
 - print("Departure Location: " + Departure Terminal)
 - print("Departure Time: " + Departure Time)
@@ -62,7 +62,7 @@ ELSE:
 - print("Arrival Time: " + Arrival Time)
 - print("Arrival Location: " + Arrival Terminal)
 /newline/
-- IF New Zone = "수지 Training" AND Departure Terminal != "Subway":
+- IF New Zone = "수지 Training" AND Departure Terminal.DoesNotContain("Subway"):
 -- print("Travel to the mission office from there. Arrive before 10:45.")
 -- /newline/
 
@@ -90,9 +90,9 @@ NOTES:
 
 /newline/
 
-12. IF 2nd Departure Terminal = "Subway":
-- find their Current Companion, then, find the New Companion of the Current Companion. We will call this person "NCCC_2". In the list for NCCC_2, find the Departure Time, and label it as "NCCC_TIME_2". You will only use this for the following instruction below:
-- print("Travel to _____ through ______. Leave in time to arrive there at " + NCCC_TIME_2 + ",  and meet your new companion, " + New Companion + ".")
+12. IF 2nd Departure Terminal.contains("Subway"):
+- remove the "Subway" text from the 2nd Departure Terminal value AND the 2nd Arrival Terminal value.
+- print("Travel to + " 2nd Arrival Terminal " + through " + 2nd Departure Terminal + ". Leave in time to arrive there at " + 2nd Arrival Time + ",  and meet your new companion, " + New Companion + ".")
 ELSE:
 - print("Departure Location: " + 2nd Departure Terminal)
 - print("Departure Time: " + 2nd Departure Time)
@@ -109,13 +109,31 @@ ELSE:
 -- IF they will need to wait for their New Companion (if the final arrival time of their New Companion is greater than the time value in 2nd Arrival Time OR the final arrival time of their New Companion is greater than the Departure Time of their Current Companion, check both Arrival Time and 2nd Arrival Time to determine the final arrival time of their New Companion):
 * "Wait for your companion " + New Companion + " who will arrive at " + TIME (find the time that their New Companion will arrive and insert it here) + "."
 
-14. Include the following characters at the end of each person's plan: -----------------------------------
+14. Include the following characters at the end of each person's plan: ---------------
 
 Preserve Hangul + UTF-8.
 
 === END FORMAT RULES ===
 
-===EXAMPLES===
+===OUTPUT RULES===
+
+- Organize each person's list in the file by the zone they are currently in. Make a section for each zone. For example, everyone who is currently in the 경기 zone should be in a section with a header that looks like this:
+
+---경기---
+
+- In the final, completely formatted list, you MUST output each person's list immediately adjacent to that person's Current Companion. For example, the final list for each person's Current Companion MUST be located either directly above or directly below them in the final text. If there are three people in a companionship, they should all still be placed adjacent to each other.
+
+- Each companionship's schedule block should have a header containing the name of their Current Area. This area header should only be at the top of the companionship, and not above each individual person. It should be in the following format: /newline/ + "------------------------- " + Current Area + " -------------------------". For example: 
+
+/newline/
+------------------------- 분당 E2 -------------------------
+
+
+===EXAMPLE OUTPUT===
+
+---경기---
+
+------------------------- 분당 E2 -------------------------
 
 Justin Pugmire
 
@@ -129,17 +147,19 @@ Arrival Location: 김제역
 
 Notes: Upon arrival, wait for your companion Francis Galligao who will arrive at 14:20.
 
------------------------------------
+---------------
 
 Samuel Lockhart
 
 Drop off Justin Pugmire at 성남역. Wait at 성남역 until your new companion, Logan Hornberger, arrives there at 12:00.
 
------------------------------------
+---------------
+
+------------------------- 2 대전 1 -------------------------
 
 Francis Galligao
 
-Travel to 대전역 with Francis Webb.
+Travel to 대전역 with Trevon Wolfert.
 
 Departure Location: 대전역
 Departure Time: 10:00
@@ -157,20 +177,10 @@ Second leg of travel:
 
 Notes: Your companion Justin Pugmire will be waiting for you.
 
------------------------------------
+---------------
 
 Trevon Wolfert
 
-Travel to _____ through ______. Leave in time to arrive there at 11:55, and meet your new companion, Alma Younger.
+Travel to 대전역 through 수지구청역. Leave in time to arrive there at 11:55, and meet your new companion, Alma Younger.
 
------------------------------------
-
-===OUTPUT RULES===
-
-- In the final, completely formatted list, you MUST output each person's list immediately adjacent to that person's Current Companion. For example, the final list for each person's Current Companion MUST be located either directly above or directly below them in the final text.
-
-- Group by starting companionship.
-
-- Organize each person's list in the file by the zone they are currently in. Make a section for each zone. For example, everyone who is currently in the 경기 zone should be in a section with a header that looks like this:
-
-===경기===
+---------------

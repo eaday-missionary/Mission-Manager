@@ -58,6 +58,7 @@ Primary frontend views:
 - `View B: Main Dashboard List` (search/filter/sort + record browsing).
 - `View C: Person Detail / Edit` (read/edit single record).
 - `View D: Data Management` (append dataset, replace dataset, storage status).
+- `View E: Schedule Outputs` (`Transfer Editor` + `Schedule Text` tabs fed by generated schedule data).
 
 Navigation model:
 - App launch routes to View B when valid local data exists, else View A.
@@ -103,9 +104,11 @@ Navigation model:
 - `FR-040` Must provide two dashboard table modes:
   - `Full View`: auto-fit all 19 columns into available width when possible; if viewport is constrained, show horizontal-scroll fallback so all columns remain accessible.
   - `Expanded View`: denser table with horizontal scrolling for full column access.
+- `FR-053` Must open dashboard table in `Full View` by default on app launch and dataset load.
 - `FR-043` Must keep `Full View` and `Expanded View` controls visible at the minimum supported app size (`1100x680`).
 - `FR-044` Must indicate active table mode using explicit active styling, not disabled-button state.
 - `FR-045` Must apply consistent, sleek solid scrollbar styling across dashboard table and detail scrolling surfaces.
+- `FR-054` Must support practical-speed horizontal trackpad/wheel scrolling for dashboard table overflow (especially in `Expanded View`).
 
 ### Person Detail State
 - `FR-018` Must display all editable fields for one selected person.
@@ -122,6 +125,10 @@ Navigation model:
 - `FR-021` Must show current dataset status (loaded timestamp, approximate count).
 - `FR-022` Must provide append-data action using Excel import.
 - `FR-023` Must provide replace-all-data action with explicit confirmation.
+- `FR-051` Must provide clear-dataset action with explicit confirmation.
+- `FR-052` Successful `Clear Dataset` must clear transfer-derived outputs (`Transfer Editor` and `Schedule Text`).
+- `FR-055` Successful `Apply`, `Add`, `Import`, `Append`, and `Replace` operations must automatically regenerate transfer-derived outputs.
+- `FR-056` Manual `Create Schedule` remains available as an optional fallback/force-refresh action with existing confirmation behavior.
 
 ## Interaction and Feedback Standards
 - `UX-003` Must show loading indicators for import, heavy filtering, and apply operations.
@@ -160,7 +167,9 @@ Navigation model:
 - Supported filters/sorts include `Current Area`, `New Zone`, `New Area`, `First Name`, `Last Name`, `Departure Time`, `Arrival Time`, `Second Leg?`, `2nd Departure Time`, and `2nd Arrival Time`.
 - Time fields sort in true chronological order using `HH:mm`.
 - Full View prioritizes showing all 19 columns simultaneously and falls back to horizontal scrolling when the window is constrained; Expanded View exposes all columns via horizontal scroll.
+- Dashboard opens in `Full View` by default and allows switching to `Expanded View` on demand.
 - Clicking `Full View` always applies full mode; clicking `Expanded View` always applies expanded mode.
+- Horizontal trackpad/wheel scrolling in overflow states moves at practical speed rather than tiny incremental motion.
 
 ### Detail Edit
 - User can open a person record, edit valid fields, apply, and immediately return to the previous tab context with updated data.
@@ -177,6 +186,8 @@ Navigation model:
 ### Replace/Append Dataset
 - Append adds new rows without erasing existing rows unless duplicates are explicitly resolved by defined rules.
 - Replace flow requires confirmation and fully swaps local dataset on success.
+- Replace and append flows auto-regenerate transfer-derived views on success.
+- Clear flow empties transfer-derived views immediately.
 
 ### Error Handling
 - All critical failures surface concise, actionable messages.
@@ -192,4 +203,4 @@ Navigation model:
 ## Implementation Note
 - Current implementation supports canonical headers and known sample-header aliases (for example `Transfer to Zone`, `Staying?`, `Departing Terminal`) which are normalized internally.
 - Dashboard search is global (no field dropdown), refresh is automatic, the UI uses a built-in dark themed style, and scrollbars use a consistent solid dark visual treatment.
-- App shell window title currently displays `Mission Manager 1.1` for release identification.
+- App shell window title currently displays `Mission Manager` for release identification.

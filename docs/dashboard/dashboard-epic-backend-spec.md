@@ -193,12 +193,20 @@ Boolean fields:
 - Must parse and validate candidate dataset before destructive commit.
 - Replace operation must execute in a transaction.
 - On failure, previous dataset remains intact.
+- On success, people dataset is replaced transactionally without clearing prior transfer schedule projections.
+- Application flow must attempt immediate schedule regeneration after successful replace.
+- If post-replace regeneration fails, prior transfer projections remain visible until a later successful regeneration.
+
+### Clear Dataset
+- Clear operation must delete people data and transfer schedule projection tables.
+- Clear operation must execute transactionally so UI cannot observe partially cleared state.
 
 ### Edit
 - Patch-based update by `person_id`.
 - Re-validate changed fields.
 - Re-apply boolean/time normalization for updated fields.
 - UI `Apply` action triggers this `update_person(person_id, patch)` path and persists immediately.
+- Successful edit/create/import/append/replace flows should trigger schedule regeneration through application orchestration.
 - UI post-apply navigation (returning to previously active tab) does not change backend edit contracts.
 
 ### Manual Create

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass
@@ -100,12 +100,13 @@ class ConflictAnchor:
 @dataclass
 class ScheduleBlock:
     block_id: str
-    person_id: str
-    person_display_name: str
+    person_id: str | None
+    person_display_name: str | None
     current_zone: str | None
-    starting_companionship_key: str
+    starting_companionship_key: str | None
     render_order: int
     raw_text: str
+    block_kind: Literal["person", "zone_header", "area_header"] = "person"
     created_at: str | None = None
     updated_at: str | None = None
     source_person_updated_at: str | None = None

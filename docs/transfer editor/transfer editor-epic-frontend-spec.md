@@ -19,16 +19,18 @@ Out of scope:
 Primary views and entry points:
 - `Dashboard` tab (source dataset management and schedule actions).
 - `Transfer Editor` tab (schedule text + conflict panel).
+- `Schedule Text` tab (single continuous combined schedule text for copy/paste).
 
 Navigation/ownership rules:
 - Users access transfer editor via the top tab row.
 - `Create Schedule` is initiated from Dashboard context and updates Transfer Editor content.
-- Transfer Editor remains read-focused; corrections are made in dashboard data and then synchronized by rerunning `Create Schedule`.
+- Transfer Editor remains read-focused; corrections are made in dashboard data and synchronized automatically after successful data mutations.
 
 ## UI Layout Contract
 Transfer Editor page is two-pane:
 - Left pane: scrollable schedule card list (`ScheduleBlock` list in render order).
 - Right pane: conflict panel showing conflict entries anchored to affected schedule blocks.
+- `Schedule Text` tab: one read-focused text surface that concatenates all schedule block `raw_text` content in render order.
 
 Required layout behavior:
 - `FR-001` Left pane must support vertical scrolling across complete generated schedule-card output.
@@ -58,8 +60,10 @@ Required layout behavior:
 - `FR-015` Confirming must refresh transfer editor document and conflict panel from latest backend schedule version.
 
 ### Regenerate Schedule After Edits
-- `FR-016` After editing source data in Dashboard/Person Detail, users rerun `Create Schedule` to refresh transfer editor content.
+- `FR-016` Successful dashboard data mutations (`Apply`, `Add`, `Import`, `Append`, `Replace`) must automatically refresh transfer editor content.
 - `FR-017` Refresh flow should preserve scroll position where possible; if affected block moved, focus nearest matching block.
+- `FR-045` Successful `Clear Dataset` must clear transfer-derived UI outputs (`Transfer Editor` and `Schedule Text`).
+- `FR-047` Successful `Replace Dataset` must trigger automatic transfer-output regeneration; if regeneration fails, previous transfer outputs remain visible and an actionable error is shown.
 
 ### Transfer Editor Read/Review Interaction
 - `FR-019` Clicking a conflict entry in right panel must scroll/jump to associated schedule block anchor.
@@ -78,6 +82,7 @@ Required layout behavior:
   - All matches: light sky blue (`#87CEFA`)
   - Active match: light turquoise (`#40E0D0`)
 - `FR-039` Search highlight colors must take precedence over conflict line highlight colors for overlapping text spans.
+- `FR-046` `Schedule Text` must render all generated schedule block text as one continuous copyable text document with no per-block card wrappers.
 
 ## Functional Requirements
 - `FR-023` Transfer editor must render schedule blocks in backend-provided deterministic order.
@@ -127,6 +132,7 @@ Required layout behavior:
 - Zone grouping and companion adjacency are visible in rendered order.
 - Transfer editor surfaces remain dark-themed with readable white text and consistent scrollbar styling.
 - Double-clicking a card opens that person in Person Detail.
+- Schedule Text tab shows one continuous combined text output in render order for full-document copy/paste.
 
 ### Conflict Visibility
 - Time conflicts are red inline + red in right panel.
@@ -171,8 +177,9 @@ Required layout behavior:
 6. No-conflict rendering:
 - No conflicts returns explicit success/no-conflict panel text.
 
-7. Recreate schedule after edits:
-- After source edits, rerunning `Create Schedule` refreshes transfer content using current data.
+7. Automatic refresh after edits:
+- After successful source-data mutations, transfer content refreshes automatically using current data.
+- Manual `Create Schedule` remains available as fallback force-refresh.
 
 8. Large list responsiveness:
 - 100-150 blocks remain scrollable and responsive at target thresholds.
@@ -196,6 +203,11 @@ Required layout behavior:
 13. Center-lock jump behavior:
 - Repeated search next/previous navigation does not drift upward/downward over time.
 - Clicking conflict entries lands each target anchor at the fixed center position (bounds permitting).
+
+14. Schedule Text rendering:
+- Combined text includes all generated schedule block `raw_text` output in render order.
+- After `Clear Dataset`, Schedule Text shows empty-state guidance.
+- After successful `Replace Dataset`, Schedule Text refreshes automatically from regenerated schedule output.
 
 ## Assumptions and Defaults
 - Transfer editor schedule content is backend-authored; frontend does not re-interpret pseudo-code logic.

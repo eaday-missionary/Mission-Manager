@@ -6,6 +6,7 @@ import pytest
 from mission_manager.constants import PERSON_FIELDS
 from mission_manager.models import ConflictAnchor, DatasetState, ScheduleBlock, ScheduleConflict
 from mission_manager.ui.app import MissionManagerApp
+from mission_manager.ui.schedule_text_view import ScheduleTextView
 from mission_manager.ui.transfer_editor_view import TransferEditorView
 
 
@@ -38,6 +39,11 @@ def _canvas_anchor_for(view: TransferEditorView, block_id: str, text_index: str 
 class _FakeService:
     def __init__(self) -> None:
         self.people = []
+        self.schedule_blocks: list[ScheduleBlock] = []
+        self.schedule_conflicts: list[ScheduleConflict] = []
+        self.schedule_build_calls = 0
+        self.replace_should_fail = False
+        self.auto_schedule_should_fail = False
 
     def load_local_dataset(self) -> DatasetState:
         return DatasetState(
@@ -52,16 +58,28 @@ class _FakeService:
         return list(self.people)
 
     def get_schedule_document(self):
-        return []
+        return list(self.schedule_blocks)
 
     def list_schedule_conflicts(self):
-        return []
+        return list(self.schedule_conflicts)
 
     def get_person(self, person_id: str):
         for person in self.people:
             if person.id == person_id:
                 return person
         return None
+
+    def _refresh_schedule_projection(self) -> None:
+        self.schedule_blocks = [
+            _block(
+                f"auto-{person.id}",
+                person.id,
+                f"{person.first_name} {person.last_name}\n-----------------------------------",
+                index + 1,
+            )
+            for index, person in enumerate(self.people)
+        ]
+        self.schedule_conflicts = []
 
     def create_person(self, patch):
         created = _person_row(
@@ -73,19 +91,104 @@ class _FakeService:
         return created, []
 
     def update_person(self, person_id, patch):
-        return self.get_person(person_id), []
+        person = self.get_person(person_id)
+        if not person:
+            return None, []
+        for field, value in patch.items():
+            if hasattr(person, field):
+                setattr(person, field, value)
+        return person, []
 
-    def import_excel(self, file_path: str):  # pragma: no cover - not used in this test
-        raise NotImplementedError
+    def import_excel(self, file_path: str):
+        self.people = [_person_row("import-1", "Import", "One")]
+        return SimpleNamespace(
+            success=True,
+            records_processed=1,
+            records_inserted=1,
+            records_updated=0,
+            records_skipped=0,
+            errors=[],
+            warnings=[],
+        )
 
-    def append_excel(self, file_path: str):  # pragma: no cover - not used in this test
-        raise NotImplementedError
+    def append_excel(self, file_path: str):
+        next_idx = len(self.people) + 1
+        self.people.append(_person_row(f"append-{next_idx}", "Append", str(next_idx)))
+        return SimpleNamespace(
+            success=True,
+            records_processed=1,
+            records_inserted=1,
+            records_updated=0,
+            records_skipped=0,
+            errors=[],
+            warnings=[],
+        )
 
-    def replace_excel(self, file_path: str):  # pragma: no cover - not used in this test
-        raise NotImplementedError
+    def replace_excel(self, file_path: str):
+        if self.replace_should_fail:
+            return SimpleNamespace(
+                success=False,
+                records_processed=1,
+                records_skipped=0,
+                errors=[SimpleNamespace(message="Replace failed", row_number=None)],
+                warnings=[],
+            )
+        self.people = [_person_row("replace-1", "Replace", "One")]
+        return SimpleNamespace(
+            success=True,
+            records_processed=1,
+            records_inserted=1,
+            records_updated=0,
+            records_skipped=0,
+            errors=[],
+            warnings=[],
+        )
 
-    def clear_dataset(self, confirm: bool) -> None:  # pragma: no cover - not used in this test
-        return None
+    def create_schedule(self, confirm_overwrite: bool):
+        if not confirm_overwrite:
+            return SimpleNamespace(
+                success=False,
+                errors=[SimpleNamespace(message="Confirmation required")],
+                warnings=[],
+                blocks_generated=0,
+                conflicts_found=0,
+            )
+        self.schedule_build_calls += 1
+        if self.auto_schedule_should_fail:
+            return SimpleNamespace(
+                success=False,
+                errors=[SimpleNamespace(message="Auto schedule failed")],
+                warnings=[],
+                blocks_generated=0,
+                conflicts_found=0,
+            )
+        self._refresh_schedule_projection()
+        return SimpleNamespace(
+            success=True,
+            errors=[],
+            warnings=[],
+            blocks_generated=len(self.schedule_blocks),
+            conflicts_found=0,
+        )
+
+    def clear_dataset(self, confirm: bool) -> None:
+        if not confirm:
+            return
+        self.people = []
+        self.schedule_blocks = []
+        self.schedule_conflicts = []
+
+
+def _block(block_id: str, person_id: str, raw_text: str, order: int) -> ScheduleBlock:
+    return ScheduleBlock(
+        block_id=block_id,
+        person_id=person_id,
+        person_display_name=f"Person {person_id}",
+        current_zone="Zone A",
+        starting_companionship_key=f"key-{person_id}",
+        render_order=order,
+        raw_text=raw_text,
+    )
 
 
 def test_app_wires_transfer_editor_tab(monkeypatch) -> None:
@@ -100,13 +203,37 @@ def test_app_wires_transfer_editor_tab(monkeypatch) -> None:
     tab_titles = [app.notebook.tab(tab_id, "text") for tab_id in app.notebook.tabs()]
 
     assert "Transfer Editor" in tab_titles
+    assert "Schedule Text" in tab_titles
     assert app.dashboard_view.on_create_schedule is not None
     assert app.dashboard_view.on_add_new is not None
     assert app.dashboard_view.y_scroll.cget("style") == "App.Vertical.TScrollbar"
     assert app.dashboard_view.x_scroll.cget("style") == "App.Horizontal.TScrollbar"
     assert app.transfer_view.conflict_list.cget("selectbackground") == "#F59E0B"
-    assert root.title() == "Mission Manager 1.1"
+    assert app.dashboard_view.view_mode == "full"
+    assert app.dashboard_view.full_btn.cget("style") == "ModeActive.TButton"
+    assert root.title() == "Mission Manager"
 
+    root.destroy()
+
+
+def test_schedule_text_view_combines_blocks_in_render_order() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = ScheduleTextView(root)
+    view.set_schedule(
+        [
+            _block("b2", "2", "SECOND\n-----------------------------------", 2),
+            _block("b1", "1", "FIRST\n-----------------------------------", 1),
+        ]
+    )
+    rendered = view.text_widget.get("1.0", "end-1c")
+    assert "FIRST" in rendered
+    assert "SECOND" in rendered
+    assert rendered.index("FIRST") < rendered.index("SECOND")
     root.destroy()
 
 
@@ -590,6 +717,8 @@ def test_add_detail_returns_to_dashboard_and_selects_new_row(monkeypatch) -> Non
     values = app.dashboard_view.tree.item(row_id, "values")
     assert values[0] == "Mina"
     assert values[1] == "Cho"
+    assert fake_service.schedule_build_calls == 1
+    assert "Mina Cho" in app.schedule_text_view.text_widget.get("1.0", "end-1c")
     root.destroy()
 
 
@@ -611,6 +740,7 @@ def test_apply_detail_returns_to_transfer_when_opened_from_transfer(monkeypatch)
     app.apply_detail("person-1", {"first_name": "Mina"})
 
     assert app.notebook.select() == str(app.transfer_view)
+    assert fake_service.schedule_build_calls == 1
     root.destroy()
 
 
@@ -634,4 +764,145 @@ def test_apply_detail_returns_to_dashboard_when_opened_from_dashboard(monkeypatc
 
     assert app.notebook.select() == str(app.dashboard_view)
     assert app.dashboard_view.tree.selection() == ("person-1",)
+    root.destroy()
+
+
+def test_clear_data_clears_transfer_and_schedule_text(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    fake_service = _FakeService()
+    fake_service.people = [_person_row("person-1", "Mina", "Cho")]
+    fake_service.schedule_blocks = [_block("block-1", "person-1", "ALPHA\n-----------------------------------", 1)]
+    monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: fake_service)
+    monkeypatch.setattr("mission_manager.ui.app.ask_confirm", lambda *_args, **_kwargs: True)
+    app = MissionManagerApp(root)
+    root.update_idletasks()
+
+    assert app.transfer_view._ordered_block_ids
+    assert "ALPHA" in app.schedule_text_view.text_widget.get("1.0", "end-1c")
+
+    app.clear_data()
+    root.update_idletasks()
+
+    assert not app.transfer_view._ordered_block_ids
+    assert "No schedule text available." in app.schedule_text_view.text_widget.get("1.0", "end-1c")
+    root.destroy()
+
+
+def test_replace_data_success_auto_regenerates_transfer_and_schedule_text(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    fake_service = _FakeService()
+    fake_service.people = [_person_row("person-1", "Mina", "Cho")]
+    fake_service.schedule_blocks = [_block("block-1", "person-1", "ALPHA\n-----------------------------------", 1)]
+    monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: fake_service)
+    monkeypatch.setattr("mission_manager.ui.app.ask_confirm", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr("mission_manager.ui.app.pick_excel_file", lambda: "fake.xlsx")
+    app = MissionManagerApp(root)
+    root.update_idletasks()
+
+    assert app.transfer_view._ordered_block_ids
+    assert "ALPHA" in app.schedule_text_view.text_widget.get("1.0", "end-1c")
+
+    app.replace_data()
+    root.update_idletasks()
+
+    assert app.transfer_view._ordered_block_ids
+    assert "Replace One" in app.schedule_text_view.text_widget.get("1.0", "end-1c")
+    assert "ALPHA" not in app.schedule_text_view.text_widget.get("1.0", "end-1c")
+    assert fake_service.schedule_build_calls == 1
+    root.destroy()
+
+
+def test_replace_data_failure_keeps_existing_transfer_outputs(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    fake_service = _FakeService()
+    fake_service.people = [_person_row("person-1", "Mina", "Cho")]
+    fake_service.schedule_blocks = [_block("block-1", "person-1", "ALPHA\n-----------------------------------", 1)]
+    fake_service.replace_should_fail = True
+    monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: fake_service)
+    monkeypatch.setattr("mission_manager.ui.app.ask_confirm", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr("mission_manager.ui.app.pick_excel_file", lambda: "fake.xlsx")
+    monkeypatch.setattr("mission_manager.ui.app.show_error", lambda *_args, **_kwargs: None)
+    app = MissionManagerApp(root)
+    root.update_idletasks()
+
+    before_text = app.schedule_text_view.text_widget.get("1.0", "end-1c")
+    before_blocks = list(app.transfer_view._ordered_block_ids)
+
+    app.replace_data()
+    root.update_idletasks()
+
+    after_text = app.schedule_text_view.text_widget.get("1.0", "end-1c")
+    assert before_blocks == app.transfer_view._ordered_block_ids
+    assert before_text == after_text
+    root.destroy()
+
+
+def test_import_and_append_auto_regenerate_schedule_outputs(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    fake_service = _FakeService()
+    monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: fake_service)
+    monkeypatch.setattr("mission_manager.ui.app.pick_excel_file", lambda: "fake.xlsx")
+    app = MissionManagerApp(root)
+    root.update_idletasks()
+
+    app.import_initial()
+    root.update_idletasks()
+    assert fake_service.schedule_build_calls == 1
+    assert "Import One" in app.schedule_text_view.text_widget.get("1.0", "end-1c")
+
+    app.append_data()
+    root.update_idletasks()
+    assert fake_service.schedule_build_calls == 2
+    rendered = app.schedule_text_view.text_widget.get("1.0", "end-1c")
+    assert "Import One" in rendered
+    assert "Append 2" in rendered
+    root.destroy()
+
+
+def test_auto_regen_failure_after_apply_preserves_existing_schedule_outputs(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    fake_service = _FakeService()
+    fake_service.people = [_person_row("person-1", "Mina", "Cho")]
+    fake_service.schedule_blocks = [_block("block-1", "person-1", "LEGACY\n-----------------------------------", 1)]
+    fake_service.auto_schedule_should_fail = True
+    monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: fake_service)
+    monkeypatch.setattr("mission_manager.ui.app.show_error", lambda *_args, **_kwargs: None)
+    app = MissionManagerApp(root)
+    root.update_idletasks()
+
+    before_blocks = list(app.transfer_view._ordered_block_ids)
+    before_text = app.schedule_text_view.text_widget.get("1.0", "end-1c")
+    app.open_detail("person-1")
+    app.apply_detail("person-1", {"first_name": "Updated"})
+    root.update_idletasks()
+
+    assert fake_service.get_person("person-1").first_name == "Updated"
+    assert before_blocks == app.transfer_view._ordered_block_ids
+    assert before_text == app.schedule_text_view.text_widget.get("1.0", "end-1c")
+    assert fake_service.schedule_build_calls == 1
     root.destroy()

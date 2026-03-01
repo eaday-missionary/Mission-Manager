@@ -9,6 +9,7 @@ In scope:
 - Detect and classify schedule conflicts (time, location, data).
 - Persist generated schedule blocks, conflict records, and schedule metadata.
 - Expose query interfaces required by the transfer editor frontend.
+- Invalidate transfer schedule projections when dashboard dataset is cleared.
 
 Out of scope:
 - Authentication and role permissions.
@@ -185,6 +186,12 @@ Recommended indexes:
 - `transfer_schedule_blocks(schedule_version, render_order)`
 - `transfer_schedule_blocks(person_id, schedule_version)`
 - `transfer_schedule_conflicts(schedule_version, conflict_type, severity)`
+
+Dataset lifecycle invalidation:
+- When dashboard `clear_dataset` executes, transfer schedule tables must be emptied.
+- When dashboard dataset `replace` executes successfully, existing transfer schedule tables/meta are preserved until a subsequent successful schedule regeneration publishes a new version.
+- Application flow should attempt immediate schedule regeneration after successful `replace`, `append`, `import`, `apply`, and `add` mutations.
+- If automatic regeneration fails, previous transfer schedule projections remain readable until a successful regeneration is published.
 
 ## Error Model and Observability
 Error categories:

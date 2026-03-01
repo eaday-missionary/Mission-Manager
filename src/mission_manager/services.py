@@ -204,11 +204,12 @@ class DashboardService:
                 Path("docs/transfer editor/transfer editor-pseudo-code.md")
             ),
         )
+        person_block_count = sum(1 for block in render.blocks if block.block_kind == "person")
         return ScheduleBuildResult(
             success=True,
             schedule_version=meta.schedule_version,
             generated_at=meta.generated_at,
-            blocks_generated=len(render.blocks),
+            blocks_generated=person_block_count,
             conflicts_found=len(conflicts),
             errors=render.errors,
             warnings=render.warnings,
