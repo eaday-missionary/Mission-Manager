@@ -54,9 +54,9 @@ def detect_transfer_conflicts(
     render_errors: list[ScheduleError],
 ) -> list[ScheduleConflict]:
     conflicts: list[ScheduleConflict] = []
-    person_by_id = {p.id: p for p in people}
     person_by_name = build_people_lookup(people)
-    block_by_person_id = {b.person_id: b for b in blocks}
+    person_blocks = [block for block in blocks if block.block_kind == "person" and block.person_id]
+    block_by_person_id = {block.person_id: block for block in person_blocks if block.person_id}
 
     for err in render_errors:
         block = block_by_person_id.get(err.person_id or "")

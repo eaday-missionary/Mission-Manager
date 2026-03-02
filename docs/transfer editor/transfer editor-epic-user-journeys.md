@@ -1,7 +1,7 @@
 # Transfer Editor Epic User Journeys
 
 ## Purpose
-This document defines end-to-end user journeys for mission office staff using the Transfer Editor workflow, including schedule generation, review, conflict detection, and fix cycles.
+This document defines end-to-end user journeys for mission office staff using the Transfer Editor workflow, including schedule generation, review, conflict detection, and schedule regeneration cycles.
 
 ## Persona
 ### Mission Office Staff
@@ -47,6 +47,7 @@ Each journey uses:
     - `WARNING, this will erase the current schedule in the transfer editor and regenerate a new schedule. Do you still want to continue?`
   - On confirm, backend regenerates all schedule blocks and conflict records.
   - Transfer editor reloads schedule + conflicts for newest schedule version.
+  - Schedule Text tab reloads one continuous combined text output for the same schedule version.
 - `Outcome`: Full schedule is available for review.
 - `Failure Path`: If user cancels warning, no schedule overwrite occurs; if generation fails, user gets actionable error and retry guidance.
 
@@ -54,12 +55,12 @@ Each journey uses:
 - `JRNY-003 Goal`: Verify that output organization supports operational review.
 - `Preconditions`: Schedule exists.
 - `Steps`:
-  1. User opens transfer editor schedule.
+  1. User opens transfer editor schedule cards.
   2. User scans zone headers.
-  3. User reviews blocks grouped by companionship.
+  3. User reviews boxed blocks grouped by companionship.
   4. User confirms each person is adjacent to current companion.
 - `System Response`:
-  - Schedule text shows deterministic render order:
+  - Schedule cards show deterministic render order:
     - Grouped by current zone.
     - Grouped by starting companionship within zone.
     - Current companions adjacent.
@@ -75,12 +76,13 @@ Each journey uses:
   2. User checks right panel red conflict entries.
   3. User clicks a red conflict entry to jump to affected schedule text.
   4. User returns to dashboard and edits relevant time fields.
-  5. User triggers `Fix Schedule`.
+  5. User clicks `Apply` in Person Detail after correcting source data.
 - `System Response`:
   - Red inline highlights match red right-panel entries.
   - Right panel lists affected people and locations.
-  - `Fix Schedule` rebuilds changed/dependent blocks and refreshes conflict set.
-- `Outcome`: Corrected time conflicts disappear or reduce after fix cycle.
+  - Clicking a conflict entry centers the selected anchor at a fixed viewport center spot (within pixel-rounding tolerance).
+  - Successful source-data save auto-regenerates schedule blocks and refreshes conflict set.
+- `Outcome`: Corrected time conflicts disappear or reduce after schedule regeneration.
 - `Failure Path`: If conflicts remain, entries persist with updated messaging and exact affected locations.
 
 ## Journey 5: Identify and Resolve Location Conflicts (Yellow)
@@ -91,38 +93,38 @@ Each journey uses:
   2. User selects yellow conflict in right panel.
   3. User confirms mismatch details (for example first arrival vs second departure terminal).
   4. User edits dashboard location fields.
-  5. User runs `Fix Schedule`.
+  5. User clicks `Apply` in Person Detail after correcting source data.
 - `System Response`:
   - Yellow inline highlights map to yellow right-panel entries.
   - Conflict messages specify affected locations.
-  - Fix refresh updates only impacted schedule blocks and all conflict summaries.
+  - Clicking a conflict entry centers the selected anchor at a fixed viewport center spot (within pixel-rounding tolerance).
+  - Successful source-data save auto-regenerates schedule blocks and updates conflict summaries.
 - `Outcome`: Location inconsistencies are cleared or narrowed for follow-up.
 - `Failure Path`: Unresolved location issues remain visible with actionable guidance.
 
-## Journey 6: Run Fix Schedule After Targeted Dashboard Edits
-- `JRNY-006 Goal`: Apply fast incremental schedule updates without full regeneration.
+## Journey 6: Automatic Schedule Refresh After Targeted Dashboard Edits
+- `JRNY-006 Goal`: Apply updated dashboard edits to transfer schedule output.
 - `Preconditions`: Existing schedule version exists; user edited one or more dashboard records.
 - `Steps`:
   1. User edits person data in dashboard.
-  2. User clicks `Fix Schedule`.
+  2. User clicks `Apply`/`Add` (or completes import/append/replace).
   3. User opens transfer editor to review updates.
 - `System Response`:
-  - Backend detects changed people using `updated_at` since last schedule generation marker/version.
-  - Backend rebuilds changed records plus companion/dependency closure.
-  - UI reports whether blocks were rebuilt or no changes were found.
-- `Outcome`: Transfer editor reflects recent edits with minimal regeneration overhead.
-- `Failure Path`: If delta detection fails, system reports issue and offers full `Create Schedule` fallback.
+  - Backend regeneration runs automatically from current dashboard source data after successful mutation.
+  - UI refreshes Transfer Editor and Schedule Text with regenerated outputs.
+- `Outcome`: Transfer Editor and Schedule Text both reflect recent edits after regeneration.
+- `Failure Path`: If regeneration fails, system reports issue and keeps the previously visible schedule output until retry succeeds.
 
 ## Journey 7: Companion Dependency Cascade Handling
 - `JRNY-007 Goal`: Ensure linked companion instructions stay coherent after one edit.
 - `Preconditions`: Edited person participates in companion lookups/instructions.
 - `Steps`:
   1. User updates a person tied to companion chains.
-  2. User runs `Fix Schedule`.
+  2. User saves the edit in Person Detail.
   3. User reviews both directly edited and dependency-related blocks.
 - `System Response`:
-  - Fix operation expands update set to include required companion/dependency rows.
-  - Affected blocks are rebuilt together to keep instructions coherent.
+  - Create operation regenerates all rows from canonical dashboard data.
+  - Companion-linked instructions remain coherent in regenerated output.
   - Conflict panel updates globally after rebuild.
 - `Outcome`: Companion-linked instructions remain internally consistent.
 - `Failure Path`: Missing dependency rows are flagged as data conflicts with person-level identifiers.
@@ -131,14 +133,14 @@ Each journey uses:
 - `JRNY-008 Goal`: Recover from source-data conditions that prevent deterministic schedule instructions.
 - `Preconditions`: Source data has missing companion references or invalid dependency relationships.
 - `Steps`:
-  1. User runs create/fix operation.
+  1. User runs `Create Schedule`.
   2. System reports data conflict entries.
   3. User navigates to dashboard and corrects companion fields.
-  4. User reruns fix/create.
+  4. User saves corrections in Person Detail to trigger automatic regeneration.
 - `System Response`:
   - Data conflicts are listed in right panel with warning styling and actionable messages.
   - Companion lookup errors are explicit (not treated as blank).
-  - On rerun, corrected rows render normally and stale data conflicts clear.
+  - On successful save, corrected rows render normally and stale data conflicts clear.
 - `Outcome`: Schedule returns to deterministic and readable output.
 - `Failure Path`: Repeated invalid references keep conflicts visible and prevent silent data corruption.
 
@@ -164,31 +166,69 @@ Each journey uses:
   2. User scrolls through schedule text.
   3. User navigates conflict entries and jumps between anchors.
 - `System Response`:
-  - Create/fix feedback remains timely.
+  - Create feedback remains timely.
   - Scrolling and anchor jumps stay responsive.
   - Scrollbar interactions remain visually consistent and usable across document and conflict panes.
   - Two-pane layout remains usable at minimum app window size.
 - `Outcome`: User can operate full transfer cycle without performance bottlenecks.
 - `Failure Path`: If thresholds are exceeded, UI surfaces operation delay state and preserves safe retry path.
 
+## Journey 12: Open Person Detail from Schedule Card
+- `JRNY-012 Goal`: Jump directly from transfer schedule review to person editing flow.
+- `Preconditions`: Schedule exists in Transfer Editor.
+- `Steps`:
+  1. User identifies a boxed schedule card that needs correction.
+  2. User double-clicks the card.
+  3. User reviews and edits person data in `Person Detail`.
+- `System Response`:
+  - Double-click routes to Person Detail for the card's person.
+  - Person Detail opens in edit mode with `Apply`.
+  - After a successful `Apply`, navigation returns to the previously active tab (`Transfer Editor` in this journey).
+  - If person row no longer exists, app shows not-found error and stays in Transfer Editor.
+- `Outcome`: User can move quickly from schedule review to source-data correction.
+- `Failure Path`: Stale/missing person linkage surfaces clear error without crashing navigation.
+
+## Journey 13: Copy Full Schedule from Schedule Text Tab
+- `JRNY-013 Goal`: Copy the entire generated schedule quickly without manual card-by-card selection.
+- `Preconditions`: Schedule has been generated.
+- `Steps`:
+  1. User opens `Schedule Text` tab.
+  2. User chooses either `Original Names` or `Missionary Titles` from bottom mode buttons.
+  3. User selects all text and copies it.
+  4. User pastes into destination document/message.
+- `System Response`:
+  - Displays one continuous text body containing all schedule blocks in render order.
+  - Shows a schedule-text search bar at the top with live matching and keyboard navigation.
+  - Shows bottom mode buttons with default `Original Names`.
+  - In `Missionary Titles` mode, replaces person naming using `Title` values (`Elder`/`Sister`/`BLANK`) and shared-last-name formatting rules.
+  - Keeps current search query and recomputes search matches when mode changes.
+  - Keeps text copyable and read-focused.
+  - After `Clear Dataset`, shows empty-state guidance.
+  - After successful `Replace Dataset`, refreshes automatically from regenerated schedule output.
+- `Outcome`: User can copy/paste complete schedule content in one action.
+- `Failure Path`: If no generated schedule exists, UI clearly instructs user to run `Create Schedule`.
+
 ## Journey 11: Locate Schedule Mentions Quickly with Live Search
 - `JRNY-011 Goal`: Find repeated schedule text occurrences quickly without manual scrolling.
 - `Preconditions`: Transfer schedule exists and is loaded in Transfer Editor.
 - `Steps`:
-  1. User presses `Ctrl+F` while Transfer Editor tab is active.
-  2. User types a search string in the transfer search bar.
-  3. User sees auto-jump to first matching occurrence in the schedule pane.
-  4. User presses Down to move to next match and Up to move to previous match.
+  1. User opens either `Transfer Editor` or `Schedule Text`.
+  2. User presses `Ctrl+F` to focus that tab's search bar.
+  3. User types a search string.
+  4. User sees auto-jump to first matching occurrence.
+  5. User presses Down or Enter to move to next match, and Up or Shift+Enter to move to previous match.
 - `System Response`:
   - Search updates character-by-character with case-insensitive contains matching.
   - All matches are highlighted in light sky blue and active match is highlighted in light turquoise.
   - Up/Down navigation wraps at boundaries (last -> first, first -> last).
+  - Enter/Shift+Enter mirrors next/previous behavior.
+  - In Transfer Editor, first/next/previous match jumps keep the active anchor at the same viewport center spot without cumulative drift.
   - Search-highlight colors remain visible even when matched text overlaps conflict-highlighted lines.
 - `Outcome`: User reviews all relevant schedule occurrences quickly and accurately.
 - `Failure Path`: If no matches are found, UI shows `0 matches`; user can clear or adjust query and retry.
 
 ## Cross-Journey UX Rules
-- `UX-007` Must use consistent loading/success/error patterns across create, fix, and read actions.
+- `UX-007` Must use consistent loading/success/error patterns across create and read actions.
 - `UX-008` Must use exact destructive warning copy for schedule overwrite.
 - `UX-009` Must provide actionable recovery guidance in all failure paths.
 - `UX-010` Must preserve text encoding and readability for UTF-8/Hangul output.
@@ -200,11 +240,14 @@ Each journey uses:
 - [ ] Time conflicts are documented as red in text and panel.
 - [ ] Location conflicts are documented as yellow in text and panel.
 - [ ] Data conflicts and missing companion behavior are explicit and recoverable.
-- [ ] `Fix Schedule` delta behavior is documented using `updated_at` + dependency closure.
+- [ ] Regeneration-after-edit behavior is documented using automatic refresh on successful data mutations.
 - [ ] Grouped output behavior (zone + companionship + adjacency) is documented.
 - [ ] No-conflict path is explicitly defined.
 - [ ] Performance journey exists for 100-150 record usage.
 - [ ] Search journey covers live typing, keyboard navigation, and `Ctrl+F` focus behavior.
+- [ ] Search and conflict jump journeys explicitly require center-lock landing without drift.
+- [ ] Card navigation journey covers double-click to Person Detail and stale-row failure behavior.
+- [ ] Schedule Text journey covers full-document copy/paste and clear/replace empty-state behavior.
 
 ## Documentation Conventions and Traceability
 - Requirement ID prefixes:

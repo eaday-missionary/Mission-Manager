@@ -11,6 +11,7 @@ from .dashboard_view import DashboardView
 from .data_mgmt_view import DataManagementView
 from .detail_view import DetailView
 from .dialogs import ask_confirm, pick_excel_file, show_error
+from .schedule_text_view import ScheduleTextView
 from .transfer_editor_view import TransferEditorView
 
 
@@ -21,6 +22,7 @@ class MissionManagerApp:
         self.root.geometry("1100x680")
         self.root.minsize(1100, 680)
         self._refresh_after_id: str | None = None
+        self._detail_return_tab: str | None = None
 
         self.service = DashboardService()
         self._apply_dark_theme()
@@ -44,7 +46,12 @@ class MissionManagerApp:
             self.import_frame,
             text="Upload a canonical Excel file (.xlsx, .xlsm, .xls) to begin.",
         ).pack(pady=(0, 12))
-        ttk.Button(self.import_frame, text="Import Excel File", command=self.import_initial).pack()
+        import_buttons = ttk.Frame(self.import_frame, style="Card.TFrame")
+        import_buttons.pack()
+        ttk.Button(import_buttons, text="Import Excel File", command=self.import_initial).pack(
+            side="left", padx=(0, 8)
+        )
+        ttk.Button(import_buttons, text="Add New", command=self.start_add_person).pack(side="left")
 
         self.main_frame = ttk.Frame(root)
         notebook = ttk.Notebook(self.main_frame)
@@ -52,28 +59,33 @@ class MissionManagerApp:
 
         self.dashboard_view = DashboardView(notebook)
         # Force default dashboard table mode on startup.
-        self.dashboard_view.set_view_mode("compact")
+        self.dashboard_view.set_view_mode("full")
         self.detail_view = DetailView(notebook)
         self.data_view = DataManagementView(notebook)
         self.transfer_view = TransferEditorView(notebook)
+        self.schedule_text_view = ScheduleTextView(notebook)
 
         notebook.add(self.dashboard_view, text="Dashboard")
         notebook.add(self.detail_view, text="Person Detail")
         notebook.add(self.data_view, text="Data Management")
         notebook.add(self.transfer_view, text="Transfer Editor")
+        notebook.add(self.schedule_text_view, text="Schedule Text")
 
         self.dashboard_view.on_open_detail = self.open_detail
+        self.dashboard_view.on_add_new = self.start_add_person
         self.dashboard_view.on_create_schedule = self.create_schedule
-        self.dashboard_view.on_fix_schedule = self.fix_schedule
         self.dashboard_view.bind_query_events(self.request_refresh)
         self.detail_view.on_apply = self.apply_detail
+        self.detail_view.on_add = self.add_detail
         self.detail_view.on_cancel = lambda: notebook.select(self.dashboard_view)
+        self.transfer_view.on_open_person = self.open_detail
 
         self.data_view.on_append = self.append_data
         self.data_view.on_replace = self.replace_data
         self.data_view.on_clear = self.clear_data
 
         self.notebook = notebook
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         self.root.bind("<Control-f>", self._focus_transfer_search)
         self.root.bind("<Control-F>", self._focus_transfer_search)
 
@@ -228,11 +240,12 @@ class MissionManagerApp:
             self.import_frame.pack_forget()
             self.main_frame.pack(fill="both", expand=True)
             self.refresh_people()
-            self.refresh_transfer_editor()
+            self.refresh_schedule_outputs()
             self.data_view.set_status(record_count=state.record_count, last_imported_at=state.last_imported_at, source_file_name=state.source_file_name)
         else:
             self.main_frame.pack_forget()
             self.import_frame.pack(fill="both", expand=True)
+            self.detail_view.enter_add_mode()
 
     def _run_import(self, mode: str) -> None:
         file_path = pick_excel_file()
@@ -260,6 +273,7 @@ class MissionManagerApp:
         self.import_frame.pack_forget()
         self.main_frame.pack(fill="both", expand=True)
         self.refresh_people()
+        self._auto_regenerate_schedule(mode)
         state = self.service.load_local_dataset()
         self.data_view.set_status(record_count=state.record_count, last_imported_at=state.last_imported_at, source_file_name=state.source_file_name)
 
@@ -278,9 +292,12 @@ class MissionManagerApp:
         if not ask_confirm("Clear Dataset", "Erase all local records?"):
             return
         self.service.clear_dataset(confirm=True)
+        self.refresh_schedule_outputs(note="No schedule available.")
         self.message_var.set("Dataset cleared")
         self.import_frame.pack(fill="both", expand=True)
         self.main_frame.pack_forget()
+        self.detail_view.enter_add_mode()
+        self.data_view.set_status(record_count=0, last_imported_at=None, source_file_name=None)
 
     def refresh_people(self) -> None:
         self._refresh_after_id = None
@@ -291,17 +308,52 @@ class MissionManagerApp:
         )
         self.dashboard_view.set_people(people)
         self.dashboard_view.update_filter_values(people)
+        state = self.service.load_local_dataset()
+        self.data_view.set_status(
+            record_count=state.record_count,
+            last_imported_at=state.last_imported_at,
+            source_file_name=state.source_file_name,
+        )
 
-    def refresh_transfer_editor(self, note: str | None = None) -> None:
+    def refresh_schedule_outputs(self, note: str | None = None) -> None:
         blocks = self.service.get_schedule_document()
         conflicts = self.service.list_schedule_conflicts()
+        people = self.service.list_people()
         self.transfer_view.set_schedule(blocks, conflicts, note=note)
+        self.schedule_text_view.set_schedule(blocks, note=note, people=people)
+
+    def refresh_transfer_editor(self, note: str | None = None) -> None:
+        # Backward-compatible alias for existing call sites/tests.
+        self.refresh_schedule_outputs(note=note)
+
+    def _auto_regenerate_schedule(self, trigger: str) -> bool:
+        result = self.service.create_schedule(confirm_overwrite=True)
+        if not result.success:
+            message = (
+                "\n".join(error.message for error in result.errors)
+                or "Automatic schedule update failed."
+            )
+            self.message_var.set(
+                f"{trigger.title()} saved, but schedule auto-update failed."
+            )
+            show_error(
+                "Schedule Auto-Update Error",
+                "Dashboard data was saved, but automatic schedule update failed.\n\n"
+                + message,
+            )
+            return False
+        self.refresh_schedule_outputs(note=f"Schedule auto-updated after {trigger}.")
+        return True
 
     def _focus_transfer_search(self, _event: tk.Event) -> str | None:
-        if self.notebook.select() != str(self.transfer_view):
-            return None
-        self.transfer_view.focus_search()
-        return "break"
+        selected_tab = self.notebook.select()
+        if selected_tab == str(self.transfer_view):
+            self.transfer_view.focus_search()
+            return "break"
+        if selected_tab == str(self.schedule_text_view):
+            self.schedule_text_view.focus_search()
+            return "break"
+        return None
 
     def create_schedule(self) -> None:
         warning = (
@@ -311,30 +363,17 @@ class MissionManagerApp:
         if not ask_confirm("Create Schedule", warning):
             return
         self.transfer_view.show_loading("Creating schedule...")
+        self.schedule_text_view.show_loading("Creating schedule text...")
         result = self.service.create_schedule(confirm_overwrite=True)
         if not result.success:
             message = "\n".join(error.message for error in result.errors) or "Schedule creation failed."
             show_error("Create Schedule Error", message)
-            self.refresh_transfer_editor(note="Schedule creation failed.")
+            self.refresh_schedule_outputs(note="Schedule creation failed.")
             return
         self.message_var.set(
             f"Schedule created: {result.blocks_generated} blocks, {result.conflicts_found} conflicts."
         )
-        self.refresh_transfer_editor(note="Schedule created.")
-        self.notebook.select(self.transfer_view)
-
-    def fix_schedule(self) -> None:
-        self.transfer_view.show_loading("Fixing schedule...")
-        result = self.service.fix_schedule()
-        if not result.success:
-            message = "\n".join(error.message for error in result.errors) or "Schedule fix failed."
-            show_error("Fix Schedule Error", message)
-            self.refresh_transfer_editor(note="Schedule fix failed.")
-            return
-        self.message_var.set(
-            f"Schedule fixed: rebuilt {result.blocks_rebuilt} blocks, {result.conflicts_found} conflicts."
-        )
-        self.refresh_transfer_editor(note="Schedule updated.")
+        self.refresh_schedule_outputs(note="Schedule created.")
         self.notebook.select(self.transfer_view)
 
     def open_detail(self, person_id: str) -> None:
@@ -342,8 +381,50 @@ class MissionManagerApp:
         if not person:
             show_error("Not Found", "Selected person could not be loaded.")
             return
-        self.detail_view.load_person(person)
+        current_tab = self.notebook.select()
+        if current_tab in {str(self.dashboard_view), str(self.transfer_view)}:
+            self._detail_return_tab = current_tab
+        elif self._detail_return_tab is None:
+            self._detail_return_tab = str(self.dashboard_view)
+        self.main_frame.pack(fill="both", expand=True)
+        self.import_frame.pack_forget()
+        self.detail_view.enter_edit_mode(person)
         self.notebook.select(self.detail_view)
+
+    def start_add_person(self) -> None:
+        self.import_frame.pack_forget()
+        self.main_frame.pack(fill="both", expand=True)
+        self.refresh_people()
+        self.refresh_schedule_outputs()
+        self.detail_view.enter_add_mode()
+        self.notebook.select(self.detail_view)
+
+    def _on_tab_changed(self, _event: tk.Event) -> None:
+        if self.notebook.select() == str(self.detail_view) and not self.detail_view.current_person_id:
+            self.detail_view.enter_add_mode()
+
+    def _select_dashboard_row(self, person_id: str) -> None:
+        if not self.dashboard_view.tree.exists(person_id):
+            return
+        self.dashboard_view.tree.selection_set(person_id)
+        self.dashboard_view.tree.focus(person_id)
+        self.dashboard_view.tree.see(person_id)
+
+    def add_detail(self, patch: dict[str, str]) -> None:
+        person, errors = self.service.create_person(patch)
+        if errors:
+            self.detail_view.show_error("; ".join(e.message for e in errors))
+            return
+        if not person:
+            show_error("Add Error", "Failed to add the new record.")
+            return
+        self.detail_view.show_error("")
+        self.detail_view.show_success("")
+        self.message_var.set("Person added.")
+        self.refresh_people()
+        self._auto_regenerate_schedule("add")
+        self.notebook.select(self.dashboard_view)
+        self._select_dashboard_row(person.id)
 
     def apply_detail(self, person_id: str, patch: dict[str, str]) -> None:
         person, errors = self.service.update_person(person_id, patch)
@@ -357,8 +438,13 @@ class MissionManagerApp:
         self.detail_view.show_success("Changes applied.")
         self.message_var.set("Changes applied.")
         self.refresh_people()
-        self.open_detail(person_id)
-        self.detail_view.show_success("Changes applied.")
+        self._auto_regenerate_schedule("apply")
+        target_tab = self._detail_return_tab
+        if target_tab not in self.notebook.tabs():
+            target_tab = str(self.dashboard_view)
+        self.notebook.select(target_tab)
+        if target_tab == str(self.dashboard_view):
+            self._select_dashboard_row(person_id)
 
 
 def run_app() -> None:

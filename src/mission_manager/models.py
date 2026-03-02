@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 
 @dataclass
@@ -20,6 +20,7 @@ class PersonRecord:
     id: str
     first_name: str
     last_name: str
+    title: str | None = None
     current_companion: str | None = None
     new_companion: str | None = None
     current_zone: str | None = None
@@ -100,12 +101,13 @@ class ConflictAnchor:
 @dataclass
 class ScheduleBlock:
     block_id: str
-    person_id: str
-    person_display_name: str
+    person_id: str | None
+    person_display_name: str | None
     current_zone: str | None
-    starting_companionship_key: str
+    starting_companionship_key: str | None
     render_order: int
     raw_text: str
+    block_kind: Literal["person", "zone_header", "area_header"] = "person"
     created_at: str | None = None
     updated_at: str | None = None
     source_person_updated_at: str | None = None
@@ -142,18 +144,6 @@ class ScheduleBuildResult:
     schedule_version: int | None = None
     generated_at: str | None = None
     blocks_generated: int = 0
-    conflicts_found: int = 0
-    errors: list[ScheduleError] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
-
-
-@dataclass
-class ScheduleFixResult:
-    success: bool
-    schedule_version: int | None = None
-    generated_at: str | None = None
-    blocks_rebuilt: int = 0
-    people_rebuilt: int = 0
     conflicts_found: int = 0
     errors: list[ScheduleError] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)

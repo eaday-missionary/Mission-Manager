@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 APP_NAME = "Mission Manager"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 
 CANONICAL_HEADERS = [
     "First Name",
@@ -25,6 +25,7 @@ CANONICAL_HEADERS = [
     "2nd Departure Time",
     "2nd Arrival Terminal",
     "2nd Arrival Time",
+    "Title",
 ]
 
 # Alias map allows known workbook variants to resolve to canonical headers.
@@ -61,6 +62,7 @@ HEADER_TO_FIELD = {
     "2nd Departure Time": "second_departure_time",
     "2nd Arrival Terminal": "second_arrival_terminal",
     "2nd Arrival Time": "second_arrival_time",
+    "Title": "title",
 }
 
 FIELD_TO_HEADER = {v: k for k, v in HEADER_TO_FIELD.items()}

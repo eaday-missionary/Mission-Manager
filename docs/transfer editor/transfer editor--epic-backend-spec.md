@@ -5,16 +5,17 @@ This document defines backend requirements for generating, storing, updating, an
 
 In scope:
 - Build schedule text blocks from dashboard person records using `docs/transfer editor/transfer editor-pseudo-code.md`.
-- Provide full schedule generation (`Create Schedule`) and delta schedule repair (`Fix Schedule`).
+- Provide schedule generation (`Create Schedule`) and regeneration from current dashboard data after edits.
 - Detect and classify schedule conflicts (time, location, data).
 - Persist generated schedule blocks, conflict records, and schedule metadata.
 - Expose query interfaces required by the transfer editor frontend.
+- Invalidate transfer schedule projections when dashboard dataset is cleared.
 
 Out of scope:
 - Authentication and role permissions.
 - Cloud sync and cross-device collaboration.
 - Automatic conflict auto-resolution (system detects and reports; user resolves by editing dashboard data).
-- Transfer-editor document search UX (`Ctrl+F`, match highlighting, Up/Down navigation), which is frontend-only behavior.
+- Transfer-editor presentation UX (card-based schedule block layout, `Ctrl+F`, match highlighting, Up/Down navigation), which is frontend-only behavior.
 
 ## Runtime and Dependencies
 - Backend runtime: Python (same runtime as dashboard epic).
@@ -38,7 +39,7 @@ Required person fields consumed by transfer editor logic:
 - `departure_terminal`, `departure_time`
 - `arrival_terminal`, `arrival_time`
 - `second_leg`, `second_departure_terminal`, `second_departure_time`, `second_arrival_terminal`, `second_arrival_time`
-- `updated_at` (for `Fix Schedule` delta detection)
+- `updated_at` (captured in schedule metadata and blocks)
 
 ## Transfer Schedule Domain Models
 
@@ -47,16 +48,6 @@ Required person fields consumed by transfer editor logic:
 - `schedule_version: int | None`
 - `generated_at: str | None` (ISO-8601 UTC)
 - `blocks_generated: int`
-- `conflicts_found: int`
-- `errors: list[ScheduleError]`
-- `warnings: list[str]`
-
-### `ScheduleFixResult`
-- `success: bool`
-- `schedule_version: int | None`
-- `generated_at: str | None` (ISO-8601 UTC)
-- `blocks_rebuilt: int`
-- `people_rebuilt: int`
 - `conflicts_found: int`
 - `errors: list[ScheduleError]`
 - `warnings: list[str]`
@@ -94,7 +85,7 @@ Required person fields consumed by transfer editor logic:
 ### `ScheduleMetadata`
 - `schedule_version: int`
 - `generated_at: str`
-- `generated_by_operation: str` (`create` | `fix`)
+- `generated_by_operation: str` (`create`)
 - `source_dataset_version: int`
 - `source_dataset_last_imported_at: str | None`
 - `source_max_person_updated_at: str | None`
@@ -113,13 +104,11 @@ Required person fields consumed by transfer editor logic:
 Required backend service contracts:
 
 - `create_schedule(confirm_overwrite: bool) -> ScheduleBuildResult`
-- `fix_schedule() -> ScheduleFixResult`
 - `get_schedule_document() -> list[ScheduleBlock]`
 - `list_schedule_conflicts() -> list[ScheduleConflict]`
 
 Optional helper contracts (internal but recommended):
 - `get_schedule_metadata() -> ScheduleMetadata | None`
-- `resolve_schedule_dependencies(changed_person_ids: list[str]) -> set[str]`
 
 ## Create Schedule Pipeline
 
@@ -153,33 +142,6 @@ Optional helper contracts (internal but recommended):
 ### 6) Atomic Publish
 - Replace prior transfer schedule blocks/conflicts in a single transaction.
 - Write new `ScheduleMetadata` with incremented `schedule_version`.
-
-## Fix Schedule Delta Pipeline
-`fix_schedule()` behavior is delta-based, not full rebuild.
-
-### Delta Detection Rule
-- Detect changed people by comparing dashboard person `updated_at` to `ScheduleMetadata.source_max_person_updated_at` or per-block `source_person_updated_at`.
-- Baseline must come from last successful schedule generation (create/fix).
-
-### Dependency Closure Rule
-For every changed person, include:
-- Their current companion row.
-- Their new companion row.
-- Anyone who references them as current companion or new companion.
-- Companion chains required by pseudo-code logic (for example NCCC lookups).
-
-### Delta Rebuild Steps
-1. Resolve changed person IDs.
-2. Expand to dependency closure.
-3. Re-render only affected blocks.
-4. Recompute output ordering for impacted companionship groups/zones.
-5. Re-run global conflict detection across full active schedule.
-6. Publish changed blocks + refreshed conflicts atomically with incremented `schedule_version`.
-
-If no rows are changed:
-- Return success with `blocks_rebuilt=0`.
-- Keep schedule content unchanged.
-- Optionally still refresh conflict scan if configured; default behavior is no-op.
 
 ## Conflict Detection Rules
 Conflict detection includes, but is not limited to, these rules.
@@ -225,6 +187,12 @@ Recommended indexes:
 - `transfer_schedule_blocks(person_id, schedule_version)`
 - `transfer_schedule_conflicts(schedule_version, conflict_type, severity)`
 
+Dataset lifecycle invalidation:
+- When dashboard `clear_dataset` executes, transfer schedule tables must be emptied.
+- When dashboard dataset `replace` executes successfully, existing transfer schedule tables/meta are preserved until a subsequent successful schedule regeneration publishes a new version.
+- Application flow should attempt immediate schedule regeneration after successful `replace`, `append`, `import`, `apply`, and `add` mutations.
+- If automatic regeneration fails, previous transfer schedule projections remain readable until a successful regeneration is published.
+
 ## Error Model and Observability
 Error categories:
 - `CONFIRMATION_REQUIRED`
@@ -245,23 +213,20 @@ Every surfaced error must include:
 - `suggested_action` (when applicable)
 
 Structured logs must include:
-- Schedule build start/end (`create`/`fix`).
-- Record counts (`people_read`, `blocks_generated`, `blocks_rebuilt`, `conflicts_found`).
-- Delta sets (`changed_people`, `dependency_expansion_count`).
+- Schedule build start/end (`create`).
+- Record counts (`people_read`, `blocks_generated`, `conflicts_found`).
 - Publish transaction success/failure and rollback events.
 
 ## Performance Targets
 For 100-150 person records on typical mission hardware:
 - Full `create_schedule`: target `<= 2s`.
-- `fix_schedule` with small delta (<= 20 affected people): target `<= 700ms`.
-- Global conflict scan after build/fix: target `<= 300ms`.
+- Global conflict scan after build: target `<= 300ms`.
 - `get_schedule_document` read path: target `<= 150ms`.
 
 ## Acceptance Criteria (Backend)
 - `create_schedule` requires explicit confirmation and exact warning copy support.
 - Generated schedules follow pseudo-code logic and formatting requirements.
 - Final output ordering is deterministic and companion-adjacent within zone groupings.
-- `fix_schedule` updates only changed + dependency-impacted blocks using `updated_at` delta logic.
 - Time conflicts are classified as `TIME_CONFLICT` and mapped to `red`.
 - Location conflicts are classified as `LOCATION_CONFLICT` and mapped to `yellow`.
 - Missing companion rows generate explicit `DATA_CONFLICT` errors.
@@ -293,24 +258,17 @@ For 100-150 person records on typical mission hardware:
 7. Location conflict examples:
 - First-leg arrival terminal differs from second departure terminal without resolvable instruction.
 
-8. Delta fix minimal rebuild:
-- Only edited person + dependency closure blocks are rebuilt; unaffected blocks remain unchanged.
-
-9. No-op fix:
-- No changed records returns success with `blocks_rebuilt=0`.
-
-10. Transaction rollback:
+8. Transaction rollback:
 - Simulated persistence error during publish leaves previous schedule version intact.
 
-11. Anchor integrity:
+9. Anchor integrity:
 - Every conflict anchor references an existing block and valid line range.
 
-12. Unicode/Hangul preservation:
+10. Unicode/Hangul preservation:
 - Hangul terminals/zones round-trip through storage without corruption.
 
 ## Assumptions and Defaults
 - Backend remains Python-based and uses existing local SQLite persistence.
 - Transfer editor source data is dashboard canonical schema and normalized values.
-- `Fix Schedule` baseline is last successful transfer schedule metadata version.
 - Transfer editor conflict detection reports issues; it does not auto-correct dashboard data.
 - Pseudo-code file remains source of truth for sentence-level schedule generation behavior.

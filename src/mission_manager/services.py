@@ -17,17 +17,89 @@ from .models import (
     ScheduleBuildResult,
     ScheduleConflict,
     ScheduleError,
-    ScheduleFixResult,
     ValidationError,
 )
 from .storage import StorageRepository
 from .transfer_conflicts import detect_transfer_conflicts
-from .transfer_engine import render_transfer_schedule, resolve_dependency_ids
+from .transfer_engine import render_transfer_schedule
 
 
 class DashboardService:
     def __init__(self, repo: StorageRepository | None = None) -> None:
         self.repo = repo or StorageRepository()
+
+    def _normalize_person_payload(
+        self,
+        payload: dict[str, Any],
+        *,
+        include_all_fields: bool,
+        require_names: bool,
+    ) -> tuple[dict[str, Any], list[ValidationError]]:
+        normalized: dict[str, Any] = {}
+        errors: list[ValidationError] = []
+        fields = PERSON_FIELDS if include_all_fields else payload.keys()
+
+        for field in fields:
+            if field not in PERSON_FIELDS:
+                continue
+            value = payload.get(field)
+            if field in ("staying", "second_leg"):
+                normalized[field], _ = normalize_boolean(value)
+            elif field in (
+                "departure_time",
+                "arrival_time",
+                "second_departure_time",
+                "second_arrival_time",
+            ):
+                tval = normalize_time(value)
+                if normalize_text(value) is not None and tval is None:
+                    errors.append(
+                        ValidationError(
+                            code="ROW_VALIDATION_ERROR",
+                            message=f"Invalid time value '{value}'",
+                            field=field,
+                        )
+                    )
+                normalized[field] = tval
+            else:
+                normalized[field] = normalize_text(value)
+
+        if require_names:
+            if not normalized.get("first_name"):
+                errors.append(
+                    ValidationError(
+                        code="ROW_VALIDATION_ERROR",
+                        message="First Name is required",
+                        field="first_name",
+                    )
+                )
+            if not normalized.get("last_name"):
+                errors.append(
+                    ValidationError(
+                        code="ROW_VALIDATION_ERROR",
+                        message="Last Name is required",
+                        field="last_name",
+                    )
+                )
+        else:
+            if "first_name" in normalized and not normalized.get("first_name"):
+                errors.append(
+                    ValidationError(
+                        code="ROW_VALIDATION_ERROR",
+                        message="First Name is required",
+                        field="first_name",
+                    )
+                )
+            if "last_name" in normalized and not normalized.get("last_name"):
+                errors.append(
+                    ValidationError(
+                        code="ROW_VALIDATION_ERROR",
+                        message="Last Name is required",
+                        field="last_name",
+                    )
+                )
+
+        return normalized, errors
 
     def load_local_dataset(self) -> DatasetState:
         return self.repo.dataset_state()
@@ -58,29 +130,27 @@ class DashboardService:
         return self.repo.get_person(person_id)
 
     def update_person(self, person_id: str, patch: dict[str, Any]):
-        normalized: dict[str, Any] = {}
-        errors: list[ValidationError] = []
-        for field, value in patch.items():
-            if field not in PERSON_FIELDS:
-                continue
-            if field in ("staying", "second_leg"):
-                normalized[field], _ = normalize_boolean(value)
-            elif field in ("departure_time", "arrival_time", "second_departure_time", "second_arrival_time"):
-                tval = normalize_time(value)
-                if normalize_text(value) is not None and tval is None:
-                    errors.append(ValidationError(code="ROW_VALIDATION_ERROR", message=f"Invalid time value '{value}'", field=field))
-                normalized[field] = tval
-            else:
-                normalized[field] = normalize_text(value)
-
-        if not normalized.get("first_name") and "first_name" in normalized:
-            errors.append(ValidationError(code="ROW_VALIDATION_ERROR", message="First Name is required", field="first_name"))
-        if not normalized.get("last_name") and "last_name" in normalized:
-            errors.append(ValidationError(code="ROW_VALIDATION_ERROR", message="Last Name is required", field="last_name"))
+        normalized, errors = self._normalize_person_payload(
+            patch,
+            include_all_fields=False,
+            require_names=False,
+        )
         if errors:
             return None, errors
 
         person = self.repo.update_person(person_id, normalized)
+        return person, []
+
+    def create_person(self, patch: dict[str, Any]):
+        normalized, errors = self._normalize_person_payload(
+            patch,
+            include_all_fields=True,
+            require_names=True,
+        )
+        if errors:
+            return None, errors
+
+        person = self.repo.create_person(normalized)
         return person, []
 
     def clear_dataset(self, confirm: bool) -> None:
@@ -134,71 +204,12 @@ class DashboardService:
                 Path("docs/transfer editor/transfer editor-pseudo-code.md")
             ),
         )
+        person_block_count = sum(1 for block in render.blocks if block.block_kind == "person")
         return ScheduleBuildResult(
             success=True,
             schedule_version=meta.schedule_version,
             generated_at=meta.generated_at,
-            blocks_generated=len(render.blocks),
-            conflicts_found=len(conflicts),
-            errors=render.errors,
-            warnings=render.warnings,
-        )
-
-    def fix_schedule(self) -> ScheduleFixResult:
-        latest = self.repo.load_latest_transfer_meta()
-        if latest is None:
-            created = self.create_schedule(confirm_overwrite=True)
-            return ScheduleFixResult(
-                success=created.success,
-                schedule_version=created.schedule_version,
-                generated_at=created.generated_at,
-                blocks_rebuilt=created.blocks_generated,
-                people_rebuilt=created.blocks_generated,
-                conflicts_found=created.conflicts_found,
-                errors=created.errors,
-                warnings=created.warnings,
-            )
-
-        changed_people = self.repo.get_people_updated_since(
-            latest.source_max_person_updated_at
-        )
-        if not changed_people:
-            return ScheduleFixResult(
-                success=True,
-                schedule_version=latest.schedule_version,
-                generated_at=latest.generated_at,
-                blocks_rebuilt=0,
-                people_rebuilt=0,
-                conflicts_found=latest.conflict_count,
-            )
-
-        all_people = self.repo.list_people()
-        affected_ids = resolve_dependency_ids(
-            all_people, {person.id for person in changed_people}
-        )
-        render = render_transfer_schedule(all_people)
-        conflicts = detect_transfer_conflicts(all_people, render.blocks, render.errors)
-        state = self.repo.dataset_state()
-        source_max_updated = max(
-            (p.updated_at for p in all_people if p.updated_at), default=None
-        )
-        meta = self.repo.replace_transfer_schedule(
-            blocks=render.blocks,
-            conflicts=conflicts,
-            generated_by_operation="fix",
-            source_dataset_version=state.schema_version,
-            source_dataset_last_imported_at=state.last_imported_at,
-            source_max_person_updated_at=source_max_updated,
-            pseudo_code_version_ref=str(
-                Path("docs/transfer editor/transfer editor-pseudo-code.md")
-            ),
-        )
-        return ScheduleFixResult(
-            success=True,
-            schedule_version=meta.schedule_version,
-            generated_at=meta.generated_at,
-            blocks_rebuilt=len(affected_ids),
-            people_rebuilt=len(affected_ids),
+            blocks_generated=person_block_count,
             conflicts_found=len(conflicts),
             errors=render.errors,
             warnings=render.warnings,

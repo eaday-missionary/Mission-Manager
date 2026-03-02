@@ -58,25 +58,7 @@ def test_transfer_service_create_and_read(tmp_path: Path) -> None:
     assert svc.get_schedule_document()
 
 
-def test_transfer_service_fix_without_prior_schedule_autocreates(tmp_path: Path) -> None:
-    repo = StorageRepository(tmp_path / "svc_transfer.sqlite3")
-    svc = DashboardService(repo)
-    repo.replace_people(
-        [
-            _record("John", "Doe", "Jane Roe", "08:00"),
-            _record("Jane", "Roe", "John Doe", "08:00"),
-        ],
-        source_file_name="sample.xlsx",
-        processed=2,
-        skipped=0,
-    )
-    result = svc.fix_schedule()
-    assert result.success
-    assert result.blocks_rebuilt >= 2
-    assert svc.get_schedule_document()
-
-
-def test_transfer_service_fix_delta_rebuilds_after_edit(tmp_path: Path) -> None:
+def test_transfer_service_create_regenerates_after_edit(tmp_path: Path) -> None:
     repo = StorageRepository(tmp_path / "svc_transfer.sqlite3")
     svc = DashboardService(repo)
     repo.replace_people(
@@ -95,9 +77,9 @@ def test_transfer_service_fix_delta_rebuilds_after_edit(tmp_path: Path) -> None:
     assert updated is not None
     assert not errors
 
-    fixed = svc.fix_schedule()
-    assert fixed.success
-    assert fixed.blocks_rebuilt > 0
-    assert fixed.schedule_version is not None
+    regenerated = svc.create_schedule(confirm_overwrite=True)
+    assert regenerated.success
+    assert regenerated.blocks_generated == 2
+    assert regenerated.schedule_version is not None
     assert created.schedule_version is not None
-    assert fixed.schedule_version > created.schedule_version
+    assert regenerated.schedule_version > created.schedule_version

@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from typing import Iterable
+from typing import Iterable, Literal
 from uuid import uuid4
 
 from .models import PersonRecord, ScheduleBlock, ScheduleError
 
 SUBWAY = "Subway"
 SUJI_TRAINING = "\uc218\uc9c0 Training"
-SEPARATOR = "-----------------------------------"
+SEPARATOR = "---------------"
 FIGHTING = "\ud654\uc774\ud305!!!"
+SUBWAY_TOKEN = re.compile(r"subway", re.IGNORECASE)
 
 
 @dataclass
@@ -20,6 +21,14 @@ class RenderResult:
     blocks: list[ScheduleBlock]
     errors: list[ScheduleError]
     warnings: list[str]
+
+
+@dataclass
+class _CompanionshipGroup:
+    zone: str
+    area: str
+    key: str
+    members: list[PersonRecord]
 
 
 def normalize_name(value: str | None) -> str:
@@ -40,6 +49,11 @@ def split_companion_names(raw: str | None) -> list[str]:
         for part in re.split(r"[&,]", raw)
         if part and part.strip()
     ]
+
+
+def _canonical_companion_text(raw: str | None) -> str:
+    names = split_companion_names(raw)
+    return " & ".join(names) if names else "-"
 
 
 def is_trainee_name(name: str) -> bool:
@@ -71,6 +85,29 @@ def _is_blank(value: str | None) -> bool:
         return True
     text = value.strip()
     return text == "" or text == "-"
+
+
+def _zone_label(person: PersonRecord) -> str:
+    return (person.current_zone or "-").strip() or "-"
+
+
+def _area_label(person: PersonRecord) -> str:
+    return (person.current_area or "-").strip() or "-"
+
+
+def _contains_subway(value: str | None) -> bool:
+    return bool(value and SUBWAY_TOKEN.search(value))
+
+
+def _cleanup_subway_terminal(value: str | None) -> str:
+    if _is_blank(value):
+        return "-"
+    cleaned = SUBWAY_TOKEN.sub("", value or "")
+    cleaned = re.sub(r"\s{2,}", " ", cleaned)
+    cleaned = re.sub(r"\s*([,/])\s*", r"\1 ", cleaned)
+    cleaned = cleaned.strip(" -/,")
+    cleaned = " ".join(cleaned.split())
+    return cleaned if cleaned else "-"
 
 
 def _build_people_index(people: Iterable[PersonRecord]) -> dict[str, PersonRecord]:
@@ -161,94 +198,86 @@ def _new_companion_final_arrival(
     return sorted(times, key=_time_to_minutes)[-1]
 
 
-def _nccc_departure_time(
-    actor: PersonRecord,
-    people_by_name: dict[str, PersonRecord],
-    errors: list[ScheduleError],
-) -> str | None:
-    current_list = _resolve_people_by_names(
-        split_companion_names(actor.current_companion),
-        people_by_name,
-        actor,
-        errors,
-        "current_companion",
-    )
-    if not current_list:
-        return None
-
-    nccc_targets: dict[str, PersonRecord] = {}
-    for current in current_list:
-        nccc_list = _resolve_people_by_names(
-            split_companion_names(current.new_companion),
-            people_by_name,
-            actor,
-            errors,
-            "new_companion",
-        )
-        for nccc in nccc_list:
-            nccc_targets[nccc.id] = nccc
-
-    departure_times = [
-        candidate.departure_time
-        for candidate in nccc_targets.values()
-        if not _is_blank(candidate.departure_time)
-    ]
-    if not departure_times:
-        return None
-    return sorted(departure_times, key=_time_to_minutes)[0]
-
-
 def _starting_companionship_key(person: PersonRecord) -> str:
-    names = [normalize_name(display_name(person))]
-    names.extend(normalize_name(n) for n in split_companion_names(person.current_companion))
-    filtered = sorted({n for n in names if n and not is_trainee_name(n)})
-    return "|".join(filtered)
+    names: list[str] = []
+    actor_name = normalize_name(display_name(person))
+    if actor_name:
+        if is_trainee_name(actor_name):
+            names.append(f"trainee:{person.id}")
+        else:
+            names.append(actor_name)
+    for raw in split_companion_names(person.current_companion):
+        norm = normalize_name(raw)
+        if not norm or is_trainee_name(norm):
+            continue
+        names.append(norm)
+    filtered = sorted(set(names))
+    if filtered:
+        return "|".join(filtered)
+    return f"solo:{person.id}"
 
 
-def _order_people(people: list[PersonRecord]) -> list[PersonRecord]:
-    active = [p for p in people if not is_trainee_name(normalize_name(display_name(p)))]
-    zone_groups: dict[str, list[PersonRecord]] = {}
-    for person in active:
-        zone = (person.current_zone or "-").strip() or "-"
-        zone_groups.setdefault(zone, []).append(person)
+def _arrange_group_members(members: list[PersonRecord]) -> list[PersonRecord]:
+    members_sorted = sorted(members, key=lambda p: normalize_name(display_name(p)))
+    member_by_name: dict[str, PersonRecord] = {}
+    for member in members_sorted:
+        canonical = normalize_name(display_name(member))
+        if not canonical or is_trainee_name(canonical):
+            continue
+        member_by_name[canonical] = member
+        parts = canonical.split()
+        if len(parts) == 2:
+            member_by_name.setdefault(f"{parts[1]} {parts[0]}", member)
 
     ordered: list[PersonRecord] = []
-    for zone in sorted(zone_groups.keys(), key=lambda z: z.casefold()):
-        group_order: list[str] = []
-        by_comp_key: dict[str, list[PersonRecord]] = {}
+    visited: set[str] = set()
+    for person in members_sorted:
+        if person.id in visited:
+            continue
+        ordered.append(person)
+        visited.add(person.id)
+        companion_names = split_companion_names(person.current_companion)
+        for name in companion_names:
+            lookup = normalize_name(name)
+            if not lookup or is_trainee_name(lookup):
+                continue
+            match = member_by_name.get(lookup)
+            if match and match.id not in visited:
+                ordered.append(match)
+                visited.add(match.id)
+    for person in members_sorted:
+        if person.id not in visited:
+            ordered.append(person)
+            visited.add(person.id)
+    return ordered
+
+
+def _ordered_companionship_groups(people: list[PersonRecord]) -> list[_CompanionshipGroup]:
+    zone_order: list[str] = []
+    zone_groups: dict[str, list[PersonRecord]] = {}
+    for person in people:
+        zone = _zone_label(person)
+        if zone not in zone_groups:
+            zone_order.append(zone)
+            zone_groups[zone] = []
+        zone_groups[zone].append(person)
+
+    groups: list[_CompanionshipGroup] = []
+    for zone in zone_order:
+        by_key: dict[str, list[PersonRecord]] = {}
+        key_order: list[str] = []
         for person in zone_groups[zone]:
             key = _starting_companionship_key(person)
-            by_comp_key.setdefault(key, []).append(person)
-            if key not in group_order:
-                group_order.append(key)
+            if key not in by_key:
+                key_order.append(key)
+                by_key[key] = []
+            by_key[key].append(person)
 
-        for key in group_order:
-            members = by_comp_key[key]
-            members_sorted = sorted(members, key=lambda p: normalize_name(display_name(p)))
-            member_by_name: dict[str, PersonRecord] = {}
-            for member in members_sorted:
-                canonical = normalize_name(display_name(member))
-                member_by_name[canonical] = member
-                parts = canonical.split()
-                if len(parts) == 2:
-                    member_by_name.setdefault(f"{parts[1]} {parts[0]}", member)
-            visited: set[str] = set()
-            for person in members_sorted:
-                if person.id in visited:
-                    continue
-                ordered.append(person)
-                visited.add(person.id)
-                companion_names = split_companion_names(person.current_companion)
-                for name in companion_names:
-                    match = member_by_name.get(normalize_name(name))
-                    if match and match.id not in visited:
-                        ordered.append(match)
-                        visited.add(match.id)
-            for person in members_sorted:
-                if person.id not in visited:
-                    ordered.append(person)
-                    visited.add(person.id)
-    return ordered
+        for key in key_order:
+            members = _arrange_group_members(by_key[key])
+            area = _area_label(members[0]) if members else "-"
+            groups.append(_CompanionshipGroup(zone=zone, area=area, key=key, members=members))
+    return groups
 
 
 def _render_person_block(
@@ -266,7 +295,8 @@ def _render_person_block(
 
     person_name = display_name(person)
     current_names = split_companion_names(person.current_companion)
-    new_companion_text = person.new_companion or "-"
+    current_companion_text = _canonical_companion_text(person.current_companion)
+    new_companion_text = _canonical_companion_text(person.new_companion)
 
     current_people = _resolve_people_by_names(
         current_names, people_by_name, person, errors, "current_companion"
@@ -284,19 +314,24 @@ def _render_person_block(
     departure_terminal = person.departure_terminal
     second_departure_terminal = person.second_departure_terminal
 
-    if normalize_name(person.new_zone) == normalize_name(SUJI_TRAINING) and normalize_name(departure_terminal) == normalize_name(SUBWAY):
+    if (
+        normalize_name(person.new_zone) == normalize_name(SUJI_TRAINING)
+        and normalize_name(departure_terminal) == normalize_name(SUBWAY)
+    ):
         add("Arrive at the mission office before 10:45.")
         nl()
         add(SEPARATOR)
         return "\n".join(lines)
 
-    if normalize_name(departure_terminal) == normalize_name(SUBWAY) or normalize_name(second_departure_terminal) == normalize_name(SUBWAY):
+    if _contains_subway(departure_terminal) or _contains_subway(second_departure_terminal):
         add("!!!!! Make sure your bus card is filled up BEFORE transfer day !!!!!")
         nl()
 
     dep_blank = _is_blank(departure_terminal)
     if dep_blank:
-        all_comp_dep_blank = bool(current_people) and all(_is_blank(cp.departure_terminal) for cp in current_people)
+        all_comp_dep_blank = bool(current_people) and all(
+            _is_blank(cp.departure_terminal) for cp in current_people
+        )
         if all_comp_dep_blank:
             add(FIGHTING)
             nl()
@@ -310,20 +345,19 @@ def _render_person_block(
             wait = _time_to_minutes(new_comp_final_display) > _time_to_minutes(
                 _time_or_default(current_departure_time)
             )
-            current_companion_label = person.current_companion or "-"
             if wait:
                 add(
-                    f"Drop off {current_companion_label} at {current_departure_terminal}. Wait at {current_departure_terminal} until your new companion, {new_companion_text}, arrives there at {new_comp_final_display}."
+                    f"Drop off {current_companion_text} at {current_departure_terminal}. Wait at {current_departure_terminal} until your new companion, {new_companion_text}, arrives there at {new_comp_final_display}."
                 )
             else:
                 add(
-                    f"Drop off {current_companion_label} at {current_departure_terminal}. Your new companion, {new_companion_text}, will be waiting."
+                    f"Drop off {current_companion_text} at {current_departure_terminal}. Your new companion, {new_companion_text}, will be waiting."
                 )
             nl()
             add(SEPARATOR)
             return "\n".join(lines)
 
-        add(f"Travel to {_time_or_default(departure_terminal)} with {person.current_companion or '-'}.")
+        add(f"Travel to - with {current_companion_text}.")
         nl()
         add(SEPARATOR)
         return "\n".join(lines)
@@ -335,26 +369,26 @@ def _render_person_block(
         wait = _time_to_minutes(new_comp_final_display) > _time_to_minutes(
             _time_or_default(current_departure_time)
         )
-        current_companion_label = person.current_companion or "-"
         if wait:
             add(
-                f"Drop off {current_companion_label} at {current_departure_terminal}. Wait at {current_departure_terminal} until your new companion, {new_companion_text}, arrives there at {new_comp_final_display}."
+                f"Drop off {current_companion_text} at {current_departure_terminal}. Wait at {current_departure_terminal} until your new companion, {new_companion_text}, arrives there at {new_comp_final_display}."
             )
         else:
             add(
-                f"Drop off {current_companion_label} at {current_departure_terminal}. Your new companion, {new_companion_text}, will be waiting."
+                f"Drop off {current_companion_text} at {current_departure_terminal}. Your new companion, {new_companion_text}, will be waiting."
             )
         nl()
         add(SEPARATOR)
         return "\n".join(lines)
 
-    add(f"Travel to {departure_terminal} with {person.current_companion or '-'}.")
+    add(f"Travel to {departure_terminal} with {current_companion_text}.")
     nl()
 
-    if normalize_name(departure_terminal) == normalize_name(SUBWAY):
-        nccc_time = _time_or_default(_nccc_departure_time(person, people_by_name, errors))
+    if _contains_subway(departure_terminal):
+        cleaned_dep = _cleanup_subway_terminal(departure_terminal)
+        cleaned_arr = _cleanup_subway_terminal(person.arrival_terminal)
         add(
-            f"Travel to _____ through ______. Leave in time to arrive there at {nccc_time}, and meet your new companion, {new_companion_text}."
+            f"Travel to {cleaned_arr} through {cleaned_dep}. Leave in time to arrive there at {_time_or_default(person.arrival_time)},  and meet your new companion, {new_companion_text}."
         )
     else:
         add(f"Departure Location: {departure_terminal}")
@@ -369,11 +403,15 @@ def _render_person_block(
 
     if person.second_leg:
         if normalize_name(person.arrival_terminal) != normalize_name(person.second_departure_terminal):
-            add(f"WARNING You need to travel to {person.second_departure_terminal or '-'} for your second leg of travel.")
+            add(
+                f"WARNING You need to travel to {person.second_departure_terminal or '-'} for your second leg of travel."
+            )
     else:
         wait = (
-            _time_to_minutes(new_comp_final_display) > _time_to_minutes(_time_or_default(person.arrival_time))
-            or _time_to_minutes(new_comp_final_display) > _time_to_minutes(_time_or_default(current_departure_time))
+            _time_to_minutes(new_comp_final_display)
+            > _time_to_minutes(_time_or_default(person.arrival_time))
+            or _time_to_minutes(new_comp_final_display)
+            > _time_to_minutes(_time_or_default(current_departure_time))
         )
         if wait:
             add(
@@ -386,10 +424,11 @@ def _render_person_block(
     if person.second_leg:
         add("Second leg of travel:")
         nl()
-        if normalize_name(person.second_departure_terminal) == normalize_name(SUBWAY):
-            nccc_time_2 = _time_or_default(_nccc_departure_time(person, people_by_name, errors))
+        if _contains_subway(person.second_departure_terminal):
+            cleaned_dep_2 = _cleanup_subway_terminal(person.second_departure_terminal)
+            cleaned_arr_2 = _cleanup_subway_terminal(person.second_arrival_terminal)
             add(
-                f"Travel to _____ through ______. Leave in time to arrive there at {nccc_time_2}, and meet your new companion, {new_companion_text}."
+                f"Travel to {cleaned_arr_2} through {cleaned_dep_2}. Leave in time to arrive there at {_time_or_default(person.second_arrival_time)},  and meet your new companion, {new_companion_text}."
             )
         else:
             add(f"Departure Location: {person.second_departure_terminal or '-'}")
@@ -400,8 +439,10 @@ def _render_person_block(
             nl()
 
         wait_second = (
-            _time_to_minutes(new_comp_final_display) > _time_to_minutes(_time_or_default(person.second_arrival_time))
-            or _time_to_minutes(new_comp_final_display) > _time_to_minutes(_time_or_default(current_departure_time))
+            _time_to_minutes(new_comp_final_display)
+            > _time_to_minutes(_time_or_default(person.second_arrival_time))
+            or _time_to_minutes(new_comp_final_display)
+            > _time_to_minutes(_time_or_default(current_departure_time))
         )
         if wait_second:
             add(f"Notes: Wait for your companion {new_companion_text} who will arrive at {new_comp_final_display}.")
@@ -413,66 +454,73 @@ def _render_person_block(
     return "\n".join(lines)
 
 
+def _make_header_block(
+    *,
+    block_kind: Literal["zone_header", "area_header"],
+    current_zone: str,
+    render_order: int,
+    raw_text: str,
+) -> ScheduleBlock:
+    return ScheduleBlock(
+        block_id=str(uuid4()),
+        person_id=None,
+        person_display_name=None,
+        current_zone=current_zone,
+        starting_companionship_key=None,
+        render_order=render_order,
+        raw_text=raw_text,
+        block_kind=block_kind,
+        source_person_updated_at=None,
+    )
+
+
 def render_transfer_schedule(people: list[PersonRecord]) -> RenderResult:
     errors: list[ScheduleError] = []
     warnings: list[str] = []
     people_by_name = build_people_lookup(people)
-    ordered_people = _order_people(people)
+    groups = _ordered_companionship_groups(people)
     blocks: list[ScheduleBlock] = []
 
-    for idx, person in enumerate(ordered_people, start=1):
-        raw_text = _render_person_block(person, people_by_name, errors)
+    order = 1
+    current_zone: str | None = None
+    for group in groups:
+        if group.zone != current_zone:
+            blocks.append(
+                _make_header_block(
+                    block_kind="zone_header",
+                    current_zone=group.zone,
+                    render_order=order,
+                    raw_text=f"---{group.zone}---",
+                )
+            )
+            order += 1
+            current_zone = group.zone
+
         blocks.append(
-            ScheduleBlock(
-                block_id=str(uuid4()),
-                person_id=person.id,
-                person_display_name=display_name(person),
-                current_zone=person.current_zone,
-                starting_companionship_key=_starting_companionship_key(person),
-                render_order=idx,
-                raw_text=raw_text,
-                source_person_updated_at=person.updated_at,
+            _make_header_block(
+                block_kind="area_header",
+                current_zone=group.zone,
+                render_order=order,
+                raw_text=f"------------------------- {group.area} -------------------------",
             )
         )
+        order += 1
+
+        for person in group.members:
+            raw_text = _render_person_block(person, people_by_name, errors)
+            blocks.append(
+                ScheduleBlock(
+                    block_id=str(uuid4()),
+                    person_id=person.id,
+                    person_display_name=display_name(person),
+                    current_zone=group.zone,
+                    starting_companionship_key=group.key,
+                    render_order=order,
+                    raw_text=raw_text,
+                    block_kind="person",
+                    source_person_updated_at=person.updated_at,
+                )
+            )
+            order += 1
 
     return RenderResult(blocks=blocks, errors=errors, warnings=warnings)
-
-
-def resolve_dependency_ids(people: list[PersonRecord], seed_ids: set[str]) -> set[str]:
-    if not seed_ids:
-        return set()
-
-    by_id = {p.id: p for p in people}
-    by_name = build_people_lookup(people)
-
-    affected = set(seed_ids)
-    changed = True
-    while changed:
-        changed = False
-        for person in people:
-            if person.id in affected:
-                refs = split_companion_names(person.current_companion) + split_companion_names(person.new_companion)
-                for ref in refs:
-                    key = normalize_name(ref)
-                    if not key or is_trainee_name(key):
-                        continue
-                    match = by_name.get(key)
-                    if match and match.id not in affected:
-                        affected.add(match.id)
-                        changed = True
-                continue
-
-            refs = split_companion_names(person.current_companion) + split_companion_names(person.new_companion)
-            ref_ids: set[str] = set()
-            for ref in refs:
-                key = normalize_name(ref)
-                if not key or is_trainee_name(key):
-                    continue
-                match = by_name.get(key)
-                if match:
-                    ref_ids.add(match.id)
-            if affected.intersection(ref_ids):
-                affected.add(person.id)
-                changed = True
-
-    return {pid for pid in affected if pid in by_id}

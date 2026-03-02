@@ -12,9 +12,10 @@ class DashboardView(ttk.Frame):
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master, padding=12)
         self.on_open_detail = None
+        self.on_add_new = None
         self.on_create_schedule = None
-        self.on_fix_schedule = None
-        self.view_mode: str = "compact"
+        self.view_mode: str = "full"
+        self._horizontal_wheel_multiplier = 3
         self.columnconfigure(0, weight=1)
         self.rowconfigure(2, weight=1)
 
@@ -38,6 +39,9 @@ class DashboardView(ttk.Frame):
 
         ttk.Button(controls, text="Open Selected", command=self._handle_open_detail).grid(
             row=1, column=2
+        )
+        ttk.Button(controls, text="Add New", command=self._handle_add_new).grid(
+            row=1, column=3, padx=(8, 0)
         )
 
         filters = ttk.Frame(self)
@@ -85,6 +89,7 @@ class DashboardView(ttk.Frame):
         self.table_container.grid_rowconfigure(0, weight=1)
         self.table_container.grid_columnconfigure(0, weight=1)
         self.tree.bind("<Double-1>", lambda _e: self._handle_open_detail())
+        self._bind_table_horizontal_scroll_events()
 
         bottom = ttk.Frame(self)
         bottom.grid(row=3, column=0, sticky="ew", pady=(6, 0))
@@ -102,11 +107,6 @@ class DashboardView(ttk.Frame):
             schedule_buttons,
             text="Create Schedule",
             command=self._handle_create_schedule,
-        ).pack(side="left", padx=(0, 8))
-        ttk.Button(
-            schedule_buttons,
-            text="Fix Schedule",
-            command=self._handle_fix_schedule,
         ).pack(side="left")
 
         self.full_btn = ttk.Button(
@@ -125,7 +125,7 @@ class DashboardView(ttk.Frame):
         self.compact_btn.pack(side="left")
 
         self.table_container.bind("<Configure>", self._on_container_resize)
-        self.set_view_mode("compact")
+        self.set_view_mode("full")
 
     def _filter_combo(
         self, parent: ttk.Frame, label: str, var: tk.StringVar, col: int, values=None
@@ -156,13 +156,13 @@ class DashboardView(ttk.Frame):
             return
         self.on_open_detail(selected[0])
 
+    def _handle_add_new(self) -> None:
+        if self.on_add_new:
+            self.on_add_new()
+
     def _handle_create_schedule(self) -> None:
         if self.on_create_schedule:
             self.on_create_schedule()
-
-    def _handle_fix_schedule(self) -> None:
-        if self.on_fix_schedule:
-            self.on_fix_schedule()
 
     def selected_filters(self) -> dict[str, str]:
         return {
@@ -225,6 +225,39 @@ class DashboardView(ttk.Frame):
         if self.view_mode == "full":
             self._apply_table_mode()
 
+    def _bind_table_horizontal_scroll_events(self) -> None:
+        widgets = (self.tree, self.table_container, self.x_scroll)
+        for widget in widgets:
+            widget.bind("<Shift-MouseWheel>", self._on_table_shift_mouse_wheel, add="+")
+            widget.bind(
+                "<Shift-Button-4>", self._on_table_shift_mouse_wheel_linux, add="+"
+            )
+            widget.bind(
+                "<Shift-Button-5>", self._on_table_shift_mouse_wheel_linux, add="+"
+            )
+
+    def _on_table_shift_mouse_wheel(self, event: tk.Event) -> str:
+        delta = int(getattr(event, "delta", 0) or 0)
+        if delta == 0:
+            return "break"
+        steps = int(delta / 120)
+        if steps == 0:
+            steps = 1 if delta > 0 else -1
+        self._scroll_table_x(-steps * self._horizontal_wheel_multiplier)
+        return "break"
+
+    def _on_table_shift_mouse_wheel_linux(self, event: tk.Event) -> str:
+        if getattr(event, "num", None) == 4:
+            self._scroll_table_x(-self._horizontal_wheel_multiplier)
+        elif getattr(event, "num", None) == 5:
+            self._scroll_table_x(self._horizontal_wheel_multiplier)
+        return "break"
+
+    def _scroll_table_x(self, units: int) -> None:
+        if units == 0:
+            return
+        self.tree.xview_scroll(units, "units")
+
     def _apply_table_mode(self) -> None:
         if self.view_mode == "full":
             overflow = self._set_full_widths()
@@ -244,6 +277,7 @@ class DashboardView(ttk.Frame):
         widths = {
             "first_name": 120,
             "last_name": 120,
+            "title": 80,
             "current_companion": 180,
             "new_companion": 180,
             "current_zone": 120,

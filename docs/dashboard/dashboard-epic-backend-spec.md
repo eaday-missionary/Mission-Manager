@@ -44,6 +44,7 @@ Backend canonical record type:
 - `second_departure_time: str | null` (`HH:mm`)
 - `second_arrival_terminal: str | null`
 - `second_arrival_time: str | null` (`HH:mm`)
+- `title: str | null` (raw text; expected values are usually `E`, `S`, or blank)
 
 Meta fields:
 - `id: str` (UUID)
@@ -78,6 +79,7 @@ Canonical header set:
 - `2nd Departure Time`
 - `2nd Arrival Terminal`
 - `2nd Arrival Time`
+- `Title`
 
 Accepted aliases:
 - `Transfer to Zone` -> `New Zone`
@@ -102,6 +104,7 @@ Required service contracts:
 - `replace_excel(file_path) -> ReplaceResult`
 - `list_people(filters, sort, search) -> list[PersonRecord]`
 - `get_person(person_id) -> PersonRecord`
+- `create_person(patch) -> PersonRecord`
 - `update_person(person_id, patch) -> PersonRecord`
 - `load_local_dataset() -> DatasetState`
 - `clear_dataset() -> None`
@@ -192,13 +195,28 @@ Boolean fields:
 - Must parse and validate candidate dataset before destructive commit.
 - Replace operation must execute in a transaction.
 - On failure, previous dataset remains intact.
+- On success, people dataset is replaced transactionally without clearing prior transfer schedule projections.
+- Application flow must attempt immediate schedule regeneration after successful replace.
+- If post-replace regeneration fails, prior transfer projections remain visible until a later successful regeneration.
+
+### Clear Dataset
+- Clear operation must delete people data and transfer schedule projection tables.
+- Clear operation must execute transactionally so UI cannot observe partially cleared state.
 
 ### Edit
 - Patch-based update by `person_id`.
 - Re-validate changed fields.
 - Re-apply boolean/time normalization for updated fields.
 - UI `Apply` action triggers this `update_person(person_id, patch)` path and persists immediately.
-- Detail-form scrolling and right-side action panel layout do not change backend edit contracts.
+- Successful edit/create/import/append/replace flows should trigger schedule regeneration through application orchestration.
+- UI post-apply navigation (returning to previously active tab) does not change backend edit contracts.
+
+### Manual Create
+- Create path must accept person payload without prior Excel import.
+- Uses same normalization and validation rules as edit path (`first_name` and `last_name` required; time/boolean normalization identical).
+- Inserts one new row in `people` with generated UUID and timestamps.
+- Updates `dataset_meta.record_count`.
+- Does not overwrite import metadata fields (`last_imported_at`, `source_file_name`) during manual create.
 
 ## Query Support for Frontend Requirements
 Required query behavior:
@@ -214,7 +232,7 @@ Required query behavior:
   - `second_leg` (yes/no)
   - `second_departure_time` (earliest-latest)
   - `second_arrival_time` (earliest-latest)
-- Must support live global search across all 19 data fields with case-insensitive contains matching.
+- Must support live global search across all 20 data fields with case-insensitive contains matching.
 - Must support boolean text matching so user queries like `yes`/`no` match stored boolean fields (`staying`, `second_leg`).
 - Combined search/filter/sort results must be deterministic and stable.
 
@@ -287,7 +305,7 @@ Those variants are now accepted through alias mapping and normalized to canonica
 
 ## Test Cases and Scenarios
 1. Schema pass case:
-- Canonical 19 headers present -> import succeeds.
+- Canonical 20 headers present -> import succeeds.
 
 2. Schema fail case:
 - Missing required header -> `SCHEMA_ERROR` with header name.
@@ -318,12 +336,16 @@ Those variants are now accepted through alias mapping and normalized to canonica
 
 9. Query behavior:
 - Default `current_zone ASC` sort.
-- Field-specific search across all 19 fields.
+- Field-specific search across all 20 fields.
 - Time sorts are chronological.
 
 10. Edit behavior:
 - Valid edit persists.
 - Invalid time/boolean edit returns field-level validation error.
+
+11. Manual create behavior:
+- Valid create persists one new row and increments record count metadata.
+- Missing required names or invalid time values return field-level validation errors.
 
 ## Assumptions and Defaults
 - Backend remains Python-based.

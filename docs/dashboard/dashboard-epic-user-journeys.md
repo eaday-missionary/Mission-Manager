@@ -32,10 +32,11 @@ Every person record in every journey uses this schema:
 | 2nd Departure Time | Military Time Value (24h HH:mm) |
 | 2nd Arrival Terminal | String |
 | 2nd Arrival Time | Military Time Value (24h HH:mm) |
+| Title | String |
 
 Shared display/search rules:
 - Missing values render as `-` while labels remain visible.
-- All 19 fields are individually searchable.
+- All 20 fields are individually searchable.
 - Default list sorting is `Current Zone` alphabetical.
 
 ## Journey Format
@@ -57,7 +58,7 @@ Each journey uses this schema:
 - `System Response`:
   - Shows loading state during parse.
   - Displays validation summary (records imported, warnings/errors).
-  - Validates required schema columns for the 19-field contract.
+  - Validates required schema columns for the 20-field contract.
   - Routes to Main Dashboard after successful commit.
 - `Outcome`: Dataset is available for search/filter/sort.
 - `Failure Path`: Invalid file or parse/schema failure keeps user on import screen with actionable error and retry option.
@@ -71,6 +72,7 @@ Each journey uses this schema:
 - `System Response`:
   - Restores dataset and displays current record count.
   - Applies default `Current Zone` alphabetical sorting.
+  - Opens dashboard table in `Full View` by default.
   - Optionally displays last updated timestamp.
 - `Outcome`: Staff user can continue tasks instantly.
 - `Failure Path`: Corrupt local data triggers clear recovery notice and route to import flow.
@@ -85,7 +87,7 @@ Each journey uses this schema:
   4. Staff user selects target record.
 - `System Response`:
   - Updates results and count in near real time with case-insensitive contains matching.
-  - Searches across all 19 fields, including yes/no boolean values.
+  - Searches across all 20 fields, including yes/no boolean values.
   - Highlights empty/no-match state if none found.
 - `Outcome`: Correct record opened in detail view.
 - `Failure Path`: No results state offers clear action to reset query or switch fields.
@@ -104,6 +106,7 @@ Each journey uses this schema:
   - Sort direction and active sort key remain visible.
   - `Full View` / `Expanded View` controls remain visible at normal startup size and show active mode with selected styling.
   - `Full View` auto-fits columns first and uses horizontal-scroll fallback when viewport width is constrained.
+  - Horizontal trackpad/wheel scrolling in overflow states moves at practical speed (not tiny incremental drift).
   - Clicking a mode button applies that exact mode immediately.
   - Result count updates with each change.
 - `Outcome`: Staff user obtains a stable, narrowed list matching operational needs.
@@ -114,14 +117,14 @@ Each journey uses this schema:
 - `Preconditions`: User is on list view with at least one record.
 - `Steps`:
   1. Staff user opens person detail view.
-  2. Staff user reviews all 19 labeled fields and scrolls through the form as needed.
+  2. Staff user reviews all 20 labeled fields and scrolls through the form as needed.
   3. Staff user edits one or more fields and clicks Apply.
 - `System Response`:
   - Keeps `Apply` and `Cancel` visible in a fixed right-side action panel while fields scroll.
   - Shows `-` for any missing values while preserving labels.
   - Validates required fields.
   - Shows inline errors for invalid values.
-  - On success, confirms apply inline, persists locally, refreshes list data, and keeps the user in detail view.
+  - On success, confirms apply inline, persists locally, auto-regenerates transfer-derived outputs, refreshes list data, and returns to the previously active tab.
 - `Outcome`: Updated values appear in detail and list views.
 - `Failure Path`: Validation errors block apply; user can fix and retry or cancel.
 
@@ -136,6 +139,7 @@ Each journey uses this schema:
   - Validates required columns in append file.
   - Shows estimated added/updated/skipped counts (as supported).
   - Persists merged dataset locally on success.
+  - Automatically regenerates transfer-derived outputs on success.
   - Preserves available sort/filter behaviors after append completes.
 - `Outcome`: Existing records remain; new applicable records added.
 - `Failure Path`: If append fails, original dataset remains intact and user receives retry guidance.
@@ -151,6 +155,8 @@ Each journey uses this schema:
   - Requires explicit confirmation before erase.
   - Validates replacement schema before commit.
   - Replaces local dataset only after successful parse/validation.
+  - Automatically regenerates transfer-derived outputs after successful replacement.
+  - If auto-regeneration fails, preserves prior transfer-derived outputs and shows actionable error feedback.
   - Returns to list with default `Current Zone` alphabetical sorting.
 - `Outcome`: New dataset fully replaces prior dataset.
 - `Failure Path`: Failed replacement does not destroy existing dataset; user remains informed and can retry.
@@ -160,7 +166,7 @@ Each journey uses this schema:
 - `Preconditions`: User attempts import/append/replace with problematic file.
 - `Steps`:
   1. Staff user uploads file.
-  2. System flags missing/invalid columns from required 19-field schema.
+  2. System flags missing/invalid columns from required 20-field schema.
   3. Staff user reviews guidance, fixes file externally, retries import.
 - `System Response`:
   - Shows specific problematic columns/rows where possible.
@@ -192,9 +198,52 @@ Each journey uses this schema:
 - `System Response`:
   - Cancel exits safely with no data change.
   - Confirm proceeds with clear progress status.
+  - Confirmed clear resets transfer-derived outputs immediately.
+  - Confirmed replace triggers automatic transfer-output regeneration; if regeneration fails, prior schedule output remains visible with an error.
   - If post-confirmation error occurs, system keeps last valid dataset whenever possible.
 - `Outcome`: Destructive actions occur only with explicit user intent.
 - `Failure Path`: Any operation failure is surfaced with clear recovery actions.
+
+## Journey 11: Add New Person from Onboarding (No Dataset Yet)
+- `JRNY-011 Goal`: Start data entry without importing Excel.
+- `Preconditions`: No local dataset exists or dataset was cleared.
+- `Steps`:
+  1. Staff user opens app and sees onboarding/import screen.
+  2. Staff user clicks `Add New`.
+  3. App opens Person Detail in add mode with blank fields and `Add` button.
+  4. Staff user enters required data and clicks `Add`.
+- `System Response`:
+  - Opens main tabs and selects Person Detail.
+  - Applies the same validation/normalization rules as edit apply flow.
+  - Persists new person and refreshes dashboard list.
+  - Returns to Dashboard and selects the new row.
+- `Outcome`: User can bootstrap dataset manually without spreadsheet import.
+- `Failure Path`: Validation errors remain inline in Person Detail and block add until corrected.
+
+## Journey 12: Add New Person from Dashboard
+- `JRNY-012 Goal`: Insert a new person row while already working in dashboard list.
+- `Preconditions`: Main dashboard is open.
+- `Steps`:
+  1. Staff user clicks `Add New` near `Open Selected`.
+  2. Person Detail opens in add mode (`Add` visible, blank fields).
+  3. Staff user submits new record.
+- `System Response`:
+  - Uses add mode with same validation rules as apply mode.
+  - On success, navigates to Dashboard and selects inserted row.
+- `Outcome`: New record is immediately visible and selectable in list.
+- `Failure Path`: Invalid entry values produce actionable inline errors.
+
+## Journey 13: Enter Person Detail Tab Without Selection
+- `JRNY-013 Goal`: Ensure direct tab navigation works safely without requiring prior row selection.
+- `Preconditions`: User navigates to Person Detail with no active selected person.
+- `Steps`:
+  1. Staff user clicks `Person Detail` tab directly.
+  2. User observes primary action button state.
+- `System Response`:
+  - Person Detail defaults to blank add mode.
+  - Primary action is `Add` (not `Apply`).
+- `Outcome`: User can start creating a new row immediately.
+- `Failure Path`: If save fails, inline error messaging remains in add mode for retry.
 
 ## Cross-Journey UX Rules
 - `UX-009` Must use consistent loading, success, and error feedback patterns.
@@ -202,20 +251,21 @@ Each journey uses this schema:
 - `UX-011` Must provide clear recovery actions in every error state.
 - `UX-012` Should preserve user context when moving between list and detail views.
 - `UX-013` Must avoid dead-end states; every major error includes a next action.
-- `UX-014` Must maintain 19-field label visibility in all record detail states.
-- `UX-015` Must keep live global search available across all records and all 19 fields.
+- `UX-014` Must maintain 20-field label visibility in all record detail states.
+- `UX-015` Must keep live global search available across all records and all 20 fields.
 - `UX-016` Must render missing values as `-` consistently across views.
 
 ## Journey Acceptance Checklist
 - [ ] Persona usage is staff-only, with no ordinary missionary references.
 - [ ] Every journey includes Goal, Preconditions, Steps, System Response, Outcome, and Failure Path.
-- [ ] All 19 schema fields are documented consistently.
+- [ ] All 20 schema fields are documented consistently.
 - [ ] Missing values are shown as `-` while labels remain visible.
 - [ ] Every field is individually searchable.
 - [ ] Default `Current Zone` alphabetical sort is documented.
 - [ ] Alternate sort/filter behavior is documented for all requested fields.
 - [ ] Search/filter/sort journeys define user-visible performance expectations.
 - [ ] Edit journey includes validation and apply/cancel outcomes.
+- [ ] Manual add journeys cover onboarding add path, dashboard add path, and no-selection detail-tab behavior.
 - [ ] Append and replace journeys clearly separate non-destructive vs destructive behavior.
 - [ ] Error-handling journeys define actionable recovery steps.
 

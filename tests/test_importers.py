@@ -29,19 +29,20 @@ def test_schema_validation_missing_header() -> None:
 
 def test_extra_columns_allowed_and_duplicates_last_row_wins() -> None:
     headers = [
-        "First Name", "Last Name", "Current Area", "Current Zone", "New Zone", "New Area",
+        "First Name", "Last Name", "Title", "Current Area", "Current Zone", "New Zone", "New Area",
         "Current Companion", "New Companion", "Staying or leaving?", "Pre Travel",
         "Departure Terminal", "Departure Time", "Arrival Terminal", "Arrival Time", "Second Leg?",
         "2nd Departure Terminal", "2nd Departure Time", "2nd Arrival Terminal", "2nd Arrival Time", "Ticket Status"
     ]
     rows = [
-        ["John", "Doe", "A1", "Zone1", "NZ", "NA", "", "", "yes", "", "T1", "08:00", "A", "09:00", "no", "", "", "", "", "Issued"],
-        ["John", "Doe", "A1", "Zone2", "NZ", "NA", "", "", "no", "", "T2", "10:00", "B", "11:00", "yes", "", "", "", "", "Issued"],
+        ["John", "Doe", "E", "A1", "Zone1", "NZ", "NA", "", "", "yes", "", "T1", "08:00", "A", "09:00", "no", "", "", "", "", "Issued"],
+        ["John", "Doe", "S", "A1", "Zone2", "NZ", "NA", "", "", "no", "", "T2", "10:00", "B", "11:00", "yes", "", "", "", "", "Issued"],
     ]
     parsed = parse_records_from_rows(headers, rows, "file.xlsx")
     assert not parsed.errors
     assert len(parsed.records) == 1
     assert parsed.records[0]["current_zone"] == "Zone2"
+    assert parsed.records[0]["title"] == "S"
     assert any("Ignoring unknown columns" in w for w in parsed.warnings)
 
 
@@ -49,6 +50,7 @@ def test_sample_header_aliases_are_accepted() -> None:
     headers = [
         "First Name",
         "Last Name",
+        "Title",
         "Current Companion",
         "New Companion",
         "Current Zone",
@@ -70,6 +72,7 @@ def test_sample_header_aliases_are_accepted() -> None:
     rows = [[
         "Jane",
         "Smith",
+        "E",
         "",
         "",
         "Zone A",
@@ -92,5 +95,34 @@ def test_sample_header_aliases_are_accepted() -> None:
     parsed = parse_records_from_rows(headers, rows, "sample.xlsm")
     assert not parsed.errors
     assert len(parsed.records) == 1
+    assert parsed.records[0]["title"] == "E"
     assert parsed.records[0]["new_zone"] == "Zone B"
     assert parsed.records[0]["departure_terminal"] == "ICN"
+
+
+def test_schema_validation_missing_title_header_fails() -> None:
+    headers = [
+        "First Name",
+        "Last Name",
+        "Current Companion",
+        "New Companion",
+        "Current Zone",
+        "Current Area",
+        "New Zone",
+        "New Area",
+        "Staying or leaving?",
+        "Pre Travel",
+        "Departure Terminal",
+        "Departure Time",
+        "Arrival Terminal",
+        "Arrival Time",
+        "Second Leg?",
+        "2nd Departure Terminal",
+        "2nd Departure Time",
+        "2nd Arrival Terminal",
+        "2nd Arrival Time",
+    ]
+    parsed = parse_records_from_rows(headers, [["Jane", "Smith"]], "file.xlsx")
+    assert parsed.errors
+    assert parsed.errors[0].code == "SCHEMA_ERROR"
+    assert "Title" in (parsed.errors[0].suggested_action or "")
