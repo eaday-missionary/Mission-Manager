@@ -26,7 +26,8 @@
 -- print("Arrive at the mission office before 10:45.")
 -- Skip all other instructions except for step 14.
 
-3. IF Departure Terminal = "Subway" OR 2nd Departure Terminal = "Subway":
+3. IF Departure Terminal.contains("Subway") OR 2nd Departure Terminal.contains("Subway"):
+- remove the "Subway" text from the Departure Terminal value AND the 2nd Departure Terminal value.
 - print("!!!!! Make sure your bus card is filled up BEFORE transfer day !!!!!")
 /newline/
 
@@ -54,7 +55,8 @@
 
 8. IF Departure Terminal.contains("Subway"):
 - remove the "Subway" text from the Departure Terminal value AND the Arrival Terminal value.
-- print("Travel to " + Arrival Terminal + " through " + Departure Terminal + ". Leave in time to arrive there at " + Arrival Time + ",  and meet your new companion, " + New Companion + ".")
+- print("Travel to " + Departure Terminal + " and ride the " + Departure Time + " to " + Arrival Terminal + ". Leave in time to arrive there at " + Arrival Time + ",  and meet your new companion, " + New Companion + ".")
+- /newline/
 ELSE:
 - print("Departure Location: " + Departure Terminal)
 - print("Departure Time: " + Departure Time)
@@ -92,7 +94,8 @@ NOTES:
 
 12. IF 2nd Departure Terminal.contains("Subway"):
 - remove the "Subway" text from the 2nd Departure Terminal value AND the 2nd Arrival Terminal value.
-- print("Travel to + " 2nd Arrival Terminal " + through " + 2nd Departure Terminal + ". Leave in time to arrive there at " + 2nd Arrival Time + ",  and meet your new companion, " + New Companion + ".")
+- print("Travel to " + 2nd Departure Terminal + " and ride the " + 2nd Departure Time + " to " + 2nd Arrival Terminal + ". Leave in time to arrive there at " + 2nd Arrival Time + ",  and meet your new companion, " + New Companion + ".")
+- /newline/
 ELSE:
 - print("Departure Location: " + 2nd Departure Terminal)
 - print("Departure Time: " + 2nd Departure Time)
@@ -110,6 +113,14 @@ ELSE:
 * "Wait for your companion " + New Companion + " who will arrive at " + TIME (find the time that their New Companion will arrive and insert it here) + "."
 
 14. Include the following characters at the end of each person's plan: ---------------
+
+15. IF Departure Terminal is NOT blank AND Departure Time AND Arrival Time are blank:
+- at the very top of the schedule block, just below their name, print("WARNING - You must purchase the " + Departure Terminal + " ticket in person")
+- /newline/
+
+16. IF 2nd Departure Terminal is NOT blank AND 2nd Departure Time AND 2nd Arrival Time are blank:
+- at the very top of the schedule block, just below their name, print("WARNING - You must purchase the " + 2nd Departure Terminal + " ticket in person")
+- /newline/
 
 Preserve Hangul + UTF-8.
 
@@ -181,6 +192,6 @@ Notes: Your companion Justin Pugmire will be waiting for you.
 
 Trevon Wolfert
 
-Travel to 대전역 through 수지구청역. Leave in time to arrive there at 11:55, and meet your new companion, Alma Younger.
+Travel to 수지구청역 and ride the yellow line to 대전역. Leave in time to arrive there at 11:55, and meet your new companion, Alma Younger.
 
 ---------------

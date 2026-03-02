@@ -8,14 +8,23 @@ from .models import ConflictAnchor, PersonRecord, ScheduleBlock, ScheduleConflic
 from .transfer_engine import build_people_lookup, display_name, normalize_name, split_companion_names
 
 
-def _time_to_minutes(value: str | None) -> int:
+def _parse_time_minutes(value: str | None) -> int | None:
     if not value:
-        return 0
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    parts = text.split(":", 1)
+    if len(parts) != 2:
+        return None
     try:
-        hh, mm = value.split(":", 1)
-        return int(hh) * 60 + int(mm)
+        hh = int(parts[0])
+        mm = int(parts[1])
     except Exception:
-        return 0
+        return None
+    if hh < 0 or hh > 23 or mm < 0 or mm > 59:
+        return None
+    return (hh * 60) + mm
 
 
 def _anchor_for(block: ScheduleBlock, token: str | None) -> ConflictAnchor:
@@ -75,8 +84,14 @@ def detect_transfer_conflicts(
             if current_comp:
                 break
 
-        if current_comp and person.departure_time and current_comp.departure_time:
-            if _time_to_minutes(person.departure_time) < _time_to_minutes(current_comp.departure_time):
+        if current_comp:
+            person_dep_minutes = _parse_time_minutes(person.departure_time)
+            companion_dep_minutes = _parse_time_minutes(current_comp.departure_time)
+            if (
+                person_dep_minutes is not None
+                and companion_dep_minutes is not None
+                and person_dep_minutes < companion_dep_minutes
+            ):
                 conflicts.append(
                     ScheduleConflict(
                         conflict_id=str(uuid4()),
@@ -95,8 +110,14 @@ def detect_transfer_conflicts(
                     )
                 )
 
-        if person.second_leg and person.arrival_time and person.second_departure_time:
-            if _time_to_minutes(person.arrival_time) > _time_to_minutes(person.second_departure_time):
+        if person.second_leg:
+            arrival_minutes = _parse_time_minutes(person.arrival_time)
+            second_dep_minutes = _parse_time_minutes(person.second_departure_time)
+            if (
+                arrival_minutes is not None
+                and second_dep_minutes is not None
+                and arrival_minutes > second_dep_minutes
+            ):
                 conflicts.append(
                     ScheduleConflict(
                         conflict_id=str(uuid4()),

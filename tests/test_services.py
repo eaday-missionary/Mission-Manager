@@ -49,7 +49,7 @@ def test_service_import_replace_flow(monkeypatch, tmp_path: Path) -> None:
     assert len(svc.list_people()) == 1
 
 
-def test_service_update_validation(tmp_path: Path) -> None:
+def test_service_update_accepts_non_time_departure_text(tmp_path: Path) -> None:
     repo = StorageRepository(tmp_path / "svc.sqlite3")
     svc = DashboardService(repo)
     repo.replace_people(
@@ -84,8 +84,10 @@ def test_service_update_validation(tmp_path: Path) -> None:
         skipped=0,
     )
     person = svc.list_people()[0]
-    _, errors = svc.update_person(person.id, {"departure_time": "bad"})
-    assert errors
+    updated, errors = svc.update_person(person.id, {"departure_time": "yellow-line"})
+    assert not errors
+    assert updated is not None
+    assert updated.departure_time == "yellow-line"
 
 
 def test_service_update_normalizes_detail_payload(tmp_path: Path) -> None:
@@ -140,7 +142,7 @@ def test_service_update_normalizes_detail_payload(tmp_path: Path) -> None:
     assert updated.second_leg is True
     assert updated.title == "S"
     assert updated.current_companion is None
-    assert updated.departure_time == "09:45"
+    assert updated.departure_time == "0945"
     assert updated.second_departure_time is None
 
 
@@ -166,7 +168,7 @@ def test_service_create_person_success_and_normalization(tmp_path: Path) -> None
     assert created.title == "E"
     assert created.staying is True
     assert created.second_leg is False
-    assert created.departure_time == "07:15"
+    assert created.departure_time == "0715"
     assert repo.dataset_state().record_count == 1
 
 
@@ -178,7 +180,7 @@ def test_service_create_person_requires_names_and_valid_time(tmp_path: Path) -> 
         {
             "first_name": "",
             "last_name": "",
-            "departure_time": "bad-time",
+            "arrival_time": "bad-time",
         }
     )
     assert created is None

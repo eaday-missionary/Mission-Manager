@@ -122,7 +122,7 @@ def parse_records_from_rows(headers: list[str], rows: Iterable[Iterable[Any]], s
                 record[field] = bval
                 if warn:
                     warnings.append(f"Row {row_number} {field}: {warn}")
-            elif field in ("departure_time", "arrival_time", "second_departure_time", "second_arrival_time"):
+            elif field in ("arrival_time", "second_arrival_time"):
                 tval = normalize_time(raw)
                 if normalize_text(raw) is not None and tval is None:
                     errors.append(
@@ -135,6 +135,8 @@ def parse_records_from_rows(headers: list[str], rows: Iterable[Iterable[Any]], s
                         )
                     )
                 record[field] = tval
+            elif field in ("departure_time", "second_departure_time"):
+                record[field] = normalize_text(raw)
             else:
                 record[field] = normalize_text(raw)
 

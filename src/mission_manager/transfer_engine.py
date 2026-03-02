@@ -70,6 +70,25 @@ def _time_to_minutes(value: str | None) -> int:
         return 0
 
 
+def _parse_time_minutes(value: str | None) -> int | None:
+    if not value:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    parts = text.split(":", 1)
+    if len(parts) != 2:
+        return None
+    try:
+        hh = int(parts[0])
+        mm = int(parts[1])
+    except Exception:
+        return None
+    if hh < 0 or hh > 23 or mm < 0 or mm > 59:
+        return None
+    return (hh * 60) + mm
+
+
 def _time_or_default(value: str | None) -> str:
     return value if value else "00:00"
 
@@ -99,6 +118,12 @@ def _contains_subway(value: str | None) -> bool:
     return bool(value and SUBWAY_TOKEN.search(value))
 
 
+def _line_or_dash(value: str | None) -> str:
+    if _is_blank(value):
+        return "-"
+    return (value or "").strip() or "-"
+
+
 def _cleanup_subway_terminal(value: str | None) -> str:
     if _is_blank(value):
         return "-"
@@ -108,6 +133,51 @@ def _cleanup_subway_terminal(value: str | None) -> str:
     cleaned = cleaned.strip(" -/,")
     cleaned = " ".join(cleaned.split())
     return cleaned if cleaned else "-"
+
+
+def _needs_wait_for_new_companion(
+    new_comp_final_time: str | None,
+    candidate_times: list[str | None],
+) -> bool:
+    new_comp_minutes = _parse_time_minutes(new_comp_final_time)
+    if new_comp_minutes is None:
+        return False
+    comparisons: list[bool] = []
+    for candidate in candidate_times:
+        candidate_minutes = _parse_time_minutes(candidate)
+        if candidate_minutes is None:
+            continue
+        comparisons.append(new_comp_minutes > candidate_minutes)
+    if not comparisons:
+        return False
+    return any(comparisons)
+
+
+def _top_ticket_warnings(
+    person: PersonRecord,
+    *,
+    departure_terminal: str | None,
+    second_departure_terminal: str | None,
+) -> list[str]:
+    warnings: list[str] = []
+    if (
+        not _is_blank(departure_terminal)
+        and _is_blank(person.departure_time)
+        and _is_blank(person.arrival_time)
+    ):
+        warnings.append(
+            f"WARNING - You must purchase the {departure_terminal} ticket in person"
+        )
+    if (
+        person.second_leg is True
+        and not _is_blank(second_departure_terminal)
+        and _is_blank(person.second_departure_time)
+        and _is_blank(person.second_arrival_time)
+    ):
+        warnings.append(
+            f"WARNING - You must purchase the {second_departure_terminal} ticket in person"
+        )
+    return warnings
 
 
 def _build_people_index(people: Iterable[PersonRecord]) -> dict[str, PersonRecord]:
@@ -308,22 +378,47 @@ def _render_person_block(
     new_comp_final = _new_companion_final_arrival(person, people_by_name, errors)
     new_comp_final_display = _time_or_default(new_comp_final)
 
-    add(person_name)
-    nl()
+    raw_departure_terminal = person.departure_terminal
+    raw_second_departure_terminal = person.second_departure_terminal
+    dep_subway_raw = _contains_subway(raw_departure_terminal)
+    second_dep_subway_raw = _contains_subway(raw_second_departure_terminal)
+    has_subway_any_raw = dep_subway_raw or second_dep_subway_raw
 
-    departure_terminal = person.departure_terminal
-    second_departure_terminal = person.second_departure_terminal
+    departure_terminal = (
+        _cleanup_subway_terminal(raw_departure_terminal)
+        if has_subway_any_raw
+        else raw_departure_terminal
+    )
+    second_departure_terminal = (
+        _cleanup_subway_terminal(raw_second_departure_terminal)
+        if has_subway_any_raw
+        else raw_second_departure_terminal
+    )
+
+    top_warnings = _top_ticket_warnings(
+        person,
+        departure_terminal=departure_terminal,
+        second_departure_terminal=second_departure_terminal,
+    )
+
+    add(person_name)
+    if top_warnings:
+        for warning_line in top_warnings:
+            add(warning_line)
+            nl()
+    else:
+        nl()
 
     if (
         normalize_name(person.new_zone) == normalize_name(SUJI_TRAINING)
-        and normalize_name(departure_terminal) == normalize_name(SUBWAY)
+        and normalize_name(raw_departure_terminal) == normalize_name(SUBWAY)
     ):
         add("Arrive at the mission office before 10:45.")
         nl()
         add(SEPARATOR)
         return "\n".join(lines)
 
-    if _contains_subway(departure_terminal) or _contains_subway(second_departure_terminal):
+    if has_subway_any_raw:
         add("!!!!! Make sure your bus card is filled up BEFORE transfer day !!!!!")
         nl()
 
@@ -342,8 +437,9 @@ def _render_person_block(
             add(f"please arrive at the {person.pre_travel} apartment by Thursday night")
 
         if person.staying is True:
-            wait = _time_to_minutes(new_comp_final_display) > _time_to_minutes(
-                _time_or_default(current_departure_time)
+            wait = _needs_wait_for_new_companion(
+                new_comp_final,
+                [current_departure_time],
             )
             if wait:
                 add(
@@ -366,8 +462,9 @@ def _render_person_block(
         add(f"please arrive at the {person.pre_travel} apartment by Thursday night")
 
     if person.staying is True:
-        wait = _time_to_minutes(new_comp_final_display) > _time_to_minutes(
-            _time_or_default(current_departure_time)
+        wait = _needs_wait_for_new_companion(
+            new_comp_final,
+            [current_departure_time],
         )
         if wait:
             add(
@@ -384,11 +481,12 @@ def _render_person_block(
     add(f"Travel to {departure_terminal} with {current_companion_text}.")
     nl()
 
-    if _contains_subway(departure_terminal):
-        cleaned_dep = _cleanup_subway_terminal(departure_terminal)
+    if dep_subway_raw:
+        cleaned_dep = departure_terminal if not _is_blank(departure_terminal) else "-"
         cleaned_arr = _cleanup_subway_terminal(person.arrival_terminal)
+        subway_line = _line_or_dash(person.departure_time)
         add(
-            f"Travel to {cleaned_arr} through {cleaned_dep}. Leave in time to arrive there at {_time_or_default(person.arrival_time)},  and meet your new companion, {new_companion_text}."
+            f"Travel to {cleaned_dep} and ride the {subway_line} line to {cleaned_arr}. Leave in time to arrive there at {_time_or_default(person.arrival_time)},  and meet your new companion, {new_companion_text}."
         )
     else:
         add(f"Departure Location: {departure_terminal}")
@@ -402,16 +500,14 @@ def _render_person_block(
             nl()
 
     if person.second_leg:
-        if normalize_name(person.arrival_terminal) != normalize_name(person.second_departure_terminal):
+        if normalize_name(person.arrival_terminal) != normalize_name(second_departure_terminal):
             add(
-                f"WARNING You need to travel to {person.second_departure_terminal or '-'} for your second leg of travel."
+                f"WARNING You need to travel to {second_departure_terminal or '-'} for your second leg of travel."
             )
     else:
-        wait = (
-            _time_to_minutes(new_comp_final_display)
-            > _time_to_minutes(_time_or_default(person.arrival_time))
-            or _time_to_minutes(new_comp_final_display)
-            > _time_to_minutes(_time_or_default(current_departure_time))
+        wait = _needs_wait_for_new_companion(
+            new_comp_final,
+            [person.arrival_time, current_departure_time],
         )
         if wait:
             add(
@@ -424,25 +520,28 @@ def _render_person_block(
     if person.second_leg:
         add("Second leg of travel:")
         nl()
-        if _contains_subway(person.second_departure_terminal):
-            cleaned_dep_2 = _cleanup_subway_terminal(person.second_departure_terminal)
+        if second_dep_subway_raw:
+            cleaned_dep_2 = (
+                second_departure_terminal
+                if not _is_blank(second_departure_terminal)
+                else "-"
+            )
             cleaned_arr_2 = _cleanup_subway_terminal(person.second_arrival_terminal)
+            subway_line_2 = _line_or_dash(person.second_departure_time)
             add(
-                f"Travel to {cleaned_arr_2} through {cleaned_dep_2}. Leave in time to arrive there at {_time_or_default(person.second_arrival_time)},  and meet your new companion, {new_companion_text}."
+                f"Travel to {cleaned_dep_2} and ride the {subway_line_2} line to {cleaned_arr_2}. Leave in time to arrive there at {_time_or_default(person.second_arrival_time)},  and meet your new companion, {new_companion_text}."
             )
         else:
-            add(f"Departure Location: {person.second_departure_terminal or '-'}")
+            add(f"Departure Location: {second_departure_terminal or '-'}")
             add(f"Departure Time: {_time_or_default(person.second_departure_time)}")
             nl()
             add(f"Arrival Time: {_time_or_default(person.second_arrival_time)}")
             add(f"Arrival Location: {person.second_arrival_terminal or '-'}")
             nl()
 
-        wait_second = (
-            _time_to_minutes(new_comp_final_display)
-            > _time_to_minutes(_time_or_default(person.second_arrival_time))
-            or _time_to_minutes(new_comp_final_display)
-            > _time_to_minutes(_time_or_default(current_departure_time))
+        wait_second = _needs_wait_for_new_companion(
+            new_comp_final,
+            [person.second_arrival_time, current_departure_time],
         )
         if wait_second:
             add(f"Notes: Wait for your companion {new_companion_text} who will arrive at {new_comp_final_display}.")

@@ -126,3 +126,105 @@ def test_schema_validation_missing_title_header_fails() -> None:
     assert parsed.errors
     assert parsed.errors[0].code == "SCHEMA_ERROR"
     assert "Title" in (parsed.errors[0].suggested_action or "")
+
+
+def test_departure_time_fields_allow_raw_text() -> None:
+    headers = [
+        "First Name",
+        "Last Name",
+        "Title",
+        "Current Companion",
+        "New Companion",
+        "Current Zone",
+        "Current Area",
+        "New Zone",
+        "New Area",
+        "Staying or leaving?",
+        "Pre Travel",
+        "Departure Terminal",
+        "Departure Time",
+        "Arrival Terminal",
+        "Arrival Time",
+        "Second Leg?",
+        "2nd Departure Terminal",
+        "2nd Departure Time",
+        "2nd Arrival Terminal",
+        "2nd Arrival Time",
+    ]
+    rows = [[
+        "Jane",
+        "Smith",
+        "S",
+        "",
+        "",
+        "Zone A",
+        "Area A",
+        "Zone B",
+        "Area B",
+        "no",
+        "",
+        "Suji Subway",
+        "yellow",
+        "Seoul Subway",
+        "09:00",
+        "yes",
+        "Daejeon Subway",
+        "blue",
+        "Busan Subway",
+        "13:00",
+    ]]
+    parsed = parse_records_from_rows(headers, rows, "file.xlsx")
+    assert not parsed.errors
+    assert parsed.records[0]["departure_time"] == "yellow"
+    assert parsed.records[0]["second_departure_time"] == "blue"
+
+
+def test_invalid_arrival_time_still_fails_validation() -> None:
+    headers = [
+        "First Name",
+        "Last Name",
+        "Title",
+        "Current Companion",
+        "New Companion",
+        "Current Zone",
+        "Current Area",
+        "New Zone",
+        "New Area",
+        "Staying or leaving?",
+        "Pre Travel",
+        "Departure Terminal",
+        "Departure Time",
+        "Arrival Terminal",
+        "Arrival Time",
+        "Second Leg?",
+        "2nd Departure Terminal",
+        "2nd Departure Time",
+        "2nd Arrival Terminal",
+        "2nd Arrival Time",
+    ]
+    rows = [[
+        "Jane",
+        "Smith",
+        "E",
+        "",
+        "",
+        "Zone A",
+        "Area A",
+        "Zone B",
+        "Area B",
+        "no",
+        "",
+        "Suji Subway",
+        "yellow",
+        "Seoul Subway",
+        "not-a-time",
+        "no",
+        "",
+        "",
+        "",
+        "",
+    ]]
+    parsed = parse_records_from_rows(headers, rows, "file.xlsx")
+    assert parsed.errors
+    assert parsed.errors[0].code == "ROW_VALIDATION_ERROR"
+    assert parsed.errors[0].field == "arrival_time"

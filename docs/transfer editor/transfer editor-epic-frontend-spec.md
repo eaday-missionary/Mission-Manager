@@ -92,6 +92,14 @@ Required layout behavior:
   - Shared last name: `Title FirstName LastName`
 - `FR-053` Name-mode toggles must apply to `Schedule Text` only and must not modify `Transfer Editor` card text.
 - `FR-054` Switching `Schedule Text` name mode must preserve current search query and recompute match ranges/status/highlights on the rerendered content.
+- `FR-055` Subway branches in transfer output must use: `Travel to <dep> and ride the <line> line to <arr>. Leave in time to arrive there at <arr_time>,  and meet your new companion, <new_companion>.`
+- `FR-056` For subway branches, `<line>` must come from raw `Departure Time` (rule 8) or raw `2nd Departure Time` (rule 12), with `-` fallback if blank.
+- `FR-057` `Departure Time` and `2nd Departure Time` inputs may contain non-time text tokens; `Arrival Time` and `2nd Arrival Time` remain strict `HH:mm`.
+- `FR-058` If either `Departure Terminal` or `2nd Departure Terminal` contains `Subway`, both departure-terminal values must be globally cleaned (remove `Subway`) before downstream rendering/rule checks for that person.
+- `FR-059` Rule-15/16 ticket-purchase warnings must render at the top of person blocks under the person name, and must remain visible even when later branch logic returns early.
+- `FR-060` Rule-15 warning condition: departure terminal not blank while `Departure Time` and `Arrival Time` are blank. Render `WARNING - You must purchase the <departure terminal> ticket in person`.
+- `FR-061` Rule-16 warning condition: `Second Leg` is true, 2nd departure terminal not blank, while `2nd Departure Time` and `2nd Arrival Time` are blank. Render `WARNING - You must purchase the <2nd departure terminal> ticket in person`.
+- `FR-062` When present together, top warning order must be: rule 15 warning, rule 16 warning, then bus-card warning; include a blank line after each warning line.
 
 ## Functional Requirements
 - `FR-023` Transfer editor must render schedule blocks in backend-provided deterministic order.
@@ -222,6 +230,16 @@ Required layout behavior:
 - Toggling name mode preserves query and updates search results on the current text.
 - After `Clear Dataset`, Schedule Text shows empty-state guidance.
 - After successful `Replace Dataset`, Schedule Text refreshes automatically from regenerated schedule output.
+
+15. Subway sentence rendering:
+- When a departure terminal contains `Subway`, output uses `Travel to <dep> and ride the <line> line to <arr>...` wording.
+- `<line>` is sourced from raw departure-time fields (`Departure Time` for first leg, `2nd Departure Time` for second leg) with `-` fallback.
+- Non-time departure-time tokens do not create time-comparison conflicts by themselves.
+
+16. Top ticket-purchase warnings:
+- If departure terminal is present while first-leg departure/arrival times are blank, print `WARNING - You must purchase the <departure terminal> ticket in person` directly under the name.
+- If second-leg terminal is present while second-leg departure/arrival times are blank and second leg is enabled, print `WARNING - You must purchase the <2nd departure terminal> ticket in person`.
+- These warnings appear before the bus-card warning and remain visible on early-return paths.
 
 ## Assumptions and Defaults
 - Transfer editor schedule content is backend-authored; frontend does not re-interpret pseudo-code logic.

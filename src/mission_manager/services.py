@@ -45,12 +45,7 @@ class DashboardService:
             value = payload.get(field)
             if field in ("staying", "second_leg"):
                 normalized[field], _ = normalize_boolean(value)
-            elif field in (
-                "departure_time",
-                "arrival_time",
-                "second_departure_time",
-                "second_arrival_time",
-            ):
+            elif field in ("arrival_time", "second_arrival_time"):
                 tval = normalize_time(value)
                 if normalize_text(value) is not None and tval is None:
                     errors.append(
@@ -61,6 +56,8 @@ class DashboardService:
                         )
                     )
                 normalized[field] = tval
+            elif field in ("departure_time", "second_departure_time"):
+                normalized[field] = normalize_text(value)
             else:
                 normalized[field] = normalize_text(value)
 

@@ -64,6 +64,12 @@ Each journey uses:
     - Grouped by current zone.
     - Grouped by starting companionship within zone.
     - Current companions adjacent.
+  - If a departure terminal contains `Subway`, sentence output uses:
+    - `Travel to <dep> and ride the <line> line to <arr>. Leave in time to arrive there at <arr_time>,  and meet your new companion, <new_companion>.`
+    - `<line>` comes from raw `Departure Time` or `2nd Departure Time` (with `-` fallback when blank).
+  - If either departure terminal contains `Subway`, both departure-terminal values are cleaned globally before downstream rendering for that person.
+  - Rule-15/16 ticket-purchase warnings render directly under the person name when their blank-time conditions are met; both warnings can appear together and are ordered before the bus-card warning.
+  - Rule-15/16 warnings remain visible even when person-block logic follows an early-return branch.
   - Each block ends with separator line.
 - `Outcome`: User can quickly review by operational grouping.
 - `Failure Path`: If ordering is inconsistent, conflict/data warning surfaces and user is guided to regenerate or inspect source rows.

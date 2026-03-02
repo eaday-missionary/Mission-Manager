@@ -16,6 +16,14 @@ Transfer Editor epic project requirements:
 -- `Missionary Titles` mode must transform person-name display in `Schedule Text` only using `Title` field values (`E` -> `Elder`, `S` -> `Sister`, blank/`-`/other -> `BLANK`).
 -- In `Missionary Titles` mode: if a last name is unique, show `Title LastName`; if a last name is shared by two or more people, show `Title FirstName LastName`.
 -- Switching between `Original Names` and `Missionary Titles` must keep current search query text and recompute matches/highlights on the newly rendered text.
+-- When `Departure Terminal` or `2nd Departure Terminal` contains `Subway`, transfer output wording must be: `Travel to <dep> and ride the <line> line to <arr>. Leave in time to arrive there at <arr_time>,  and meet your new companion, <new_companion>.`
+-- In subway branches, `<line>` must come from raw `Departure Time` (first leg) or raw `2nd Departure Time` (second leg); if blank, use `-`.
+-- `Departure Time` and `2nd Departure Time` must accept raw text tokens (for subway line labels), while `Arrival Time` and `2nd Arrival Time` remain strict time values.
+-- If either departure terminal contains `Subway`, both `Departure Terminal` and `2nd Departure Terminal` values must be cleaned globally (remove `Subway`) before downstream rendering for that person.
+-- If `Departure Terminal` is not blank while `Departure Time` and `Arrival Time` are blank, print `WARNING - You must purchase the <Departure Terminal> ticket in person` at the top of that person block (under the name).
+-- If `Second Leg?` is true and `2nd Departure Terminal` is not blank while `2nd Departure Time` and `2nd Arrival Time` are blank, print `WARNING - You must purchase the <2nd Departure Terminal> ticket in person` at the top of that person block.
+-- Top-of-block warning order must be: first-leg ticket warning, second-leg ticket warning, then bus-card warning; each warning line is followed by a blank line.
+-- Rule-15/16 top warnings must still appear when person-block logic later exits early (for example, staying-path and special training-branch returns).
 -- Double-clicking a schedule block must open that person's record in the `Person Detail` tab for editing.
 -- Schedule text blocks remain read-only in transfer editor; users edit data through dashboard/person detail and successful saves automatically regenerate transfer outputs.
 -- Successful `Apply`, `Add`, `Import`, `Append`, and `Replace` operations must auto-regenerate all transfer-derived outputs (`Transfer Editor` blocks/conflicts and `Schedule Text` content).

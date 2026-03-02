@@ -115,3 +115,25 @@ def test_detect_transfer_conflicts_handles_reversed_companion_name_lookup() -> N
     rendered = render_transfer_schedule(people)
     conflicts = detect_transfer_conflicts(people, rendered.blocks, rendered.errors)
     assert any(conflict.conflict_type == "TIME_CONFLICT" for conflict in conflicts)
+
+
+def test_detect_transfer_conflicts_skips_non_time_departure_tokens() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="John",
+            last="Doe",
+            current_companion="Jane Roe",
+            dep_time="yellow",
+        ),
+        _person(
+            pid="2",
+            first="Jane",
+            last="Roe",
+            current_companion="John Doe",
+            dep_time="08:00",
+        ),
+    ]
+    rendered = render_transfer_schedule(people)
+    conflicts = detect_transfer_conflicts(people, rendered.blocks, rendered.errors)
+    assert not any(conflict.conflict_type == "TIME_CONFLICT" for conflict in conflicts)

@@ -110,6 +110,7 @@ def test_render_transfer_schedule_subway_contains_cleans_route_text() -> None:
             current_companion="Ben Park",
             new_companion="Chris Lee",
             dep_terminal="Suji Subway",
+            dep_time="yellow",
             arr_terminal="Seoul Subway",
             arr_time="09:30",
         ),
@@ -118,8 +119,10 @@ def test_render_transfer_schedule_subway_contains_cleans_route_text() -> None:
     ]
     result = render_transfer_schedule(people)
     actor = next(block for block in result.blocks if block.person_id == "1")
-    assert "Travel to Seoul through Suji. Leave in time to arrive there at 09:30" in actor.raw_text
-    assert "Travel to Seoul Subway through Suji Subway." not in actor.raw_text
+    assert "Travel to Suji with Ben Park." in actor.raw_text
+    assert "Travel to Suji Subway with Ben Park." not in actor.raw_text
+    assert "Travel to Suji and ride the yellow line to Seoul. Leave in time to arrive there at 09:30" in actor.raw_text
+    assert "Travel to Suji Subway and ride the yellow line to Seoul Subway." not in actor.raw_text
 
 
 def test_render_transfer_schedule_second_leg_subway_uses_second_leg_fields() -> None:
@@ -135,6 +138,7 @@ def test_render_transfer_schedule_second_leg_subway_uses_second_leg_fields() -> 
             arr_time="10:00",
             second_leg=True,
             dep2_terminal="Daejeon Subway",
+            dep2_time="blue",
             arr2_terminal="Busan Subway",
             arr2_time="13:15",
         ),
@@ -144,7 +148,173 @@ def test_render_transfer_schedule_second_leg_subway_uses_second_leg_fields() -> 
     result = render_transfer_schedule(people)
     actor = next(block for block in result.blocks if block.person_id == "1")
     assert "Second leg of travel:" in actor.raw_text
-    assert "Travel to Busan through Daejeon. Leave in time to arrive there at 13:15" in actor.raw_text
+    assert "Travel to Daejeon and ride the blue line to Busan. Leave in time to arrive there at 13:15" in actor.raw_text
+
+
+def test_render_transfer_schedule_subway_line_uses_dash_when_departure_time_missing() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            new_companion="Chris Lee",
+            dep_terminal="Suji Subway",
+            dep_time="",
+            arr_terminal="Seoul Subway",
+            arr_time="09:30",
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+        _person(pid="3", first="Chris", last="Lee", current_companion="Dana Shin"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "ride the - line" in actor.raw_text
+
+
+def test_render_transfer_schedule_rule15_warning_renders_under_name_with_spacing() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            dep_terminal="Seoul Station",
+            dep_time=None,
+            arr_time=None,
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    lines = actor.raw_text.splitlines()
+    assert lines[0] == "Alex Kim"
+    assert lines[1] == "WARNING - You must purchase the Seoul Station ticket in person"
+    assert lines[2] == ""
+    assert lines[3] == "Travel to Seoul Station with Ben Park."
+
+
+def test_render_transfer_schedule_rule16_warning_requires_second_leg() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            second_leg=False,
+            dep2_terminal="Daejeon",
+            dep2_time=None,
+            arr2_time=None,
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "WARNING - You must purchase the Daejeon ticket in person" not in actor.raw_text
+
+
+def test_render_transfer_schedule_rule15_and_rule16_precede_bus_warning() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            new_companion="Chris Lee",
+            dep_terminal="Suji Subway",
+            dep_time=None,
+            arr_terminal="Seoul Subway",
+            arr_time=None,
+            second_leg=True,
+            dep2_terminal="Daejeon Subway",
+            dep2_time=None,
+            arr2_terminal="Busan Subway",
+            arr2_time=None,
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+        _person(pid="3", first="Chris", last="Lee", current_companion="Dana Shin"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    text = actor.raw_text
+    first_warning = "WARNING - You must purchase the Suji ticket in person"
+    second_warning = "WARNING - You must purchase the Daejeon ticket in person"
+    bus_warning = "!!!!! Make sure your bus card is filled up BEFORE transfer day !!!!!"
+    assert first_warning in text
+    assert second_warning in text
+    assert bus_warning in text
+    assert text.index(first_warning) < text.index(second_warning) < text.index(bus_warning)
+    lines = text.splitlines()
+    assert lines[0] == "Alex Kim"
+    assert lines[1] == first_warning
+    assert lines[2] == ""
+    assert lines[3] == second_warning
+    assert lines[4] == ""
+    assert lines[5] == bus_warning
+    assert lines[6] == ""
+
+
+def test_render_transfer_schedule_no_ticket_warning_when_cleanup_results_in_blank_terminal() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            dep_terminal="Subway",
+            dep_time=None,
+            arr_time=None,
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "WARNING - You must purchase" not in actor.raw_text
+
+
+def test_render_transfer_schedule_rule16_warning_appears_on_suji_early_return() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            new_zone="수지 Training",
+            dep_terminal="Subway",
+            second_leg=True,
+            dep2_terminal="Daejeon",
+            dep2_time=None,
+            arr2_time=None,
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "WARNING - You must purchase the Daejeon ticket in person" in actor.raw_text
+    assert "Arrive at the mission office before 10:45." in actor.raw_text
+    assert "!!!!! Make sure your bus card is filled up BEFORE transfer day !!!!!" not in actor.raw_text
+
+
+def test_render_transfer_schedule_rule15_warning_appears_on_staying_early_return() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            new_companion="Chris Lee",
+            staying=True,
+            dep_terminal="Seoul Station",
+            dep_time=None,
+            arr_time=None,
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+        _person(pid="3", first="Chris", last="Lee", current_companion="Dana Shin"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "WARNING - You must purchase the Seoul Station ticket in person" in actor.raw_text
+    assert actor.raw_text.endswith("---------------")
 
 
 def test_render_transfer_schedule_blank_departure_step7_uses_dash_placeholder() -> None:
