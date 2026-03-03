@@ -32,7 +32,7 @@
 /newline/
 
 4. IF Departure Terminal is blank (-):
-- If Departure Terminal is ALSO blank on the row of their Current Companion:
+- If Current Companion = New Companion:
 -- print("화이팅!!!").
 -- Skip ALL other instructions for this person except step 14. This will override everything else.
 - ELSE

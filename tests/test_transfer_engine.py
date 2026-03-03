@@ -486,6 +486,63 @@ def test_render_transfer_schedule_blank_departure_step7_uses_dash_placeholder() 
     assert "Travel to - with Ben Park." in actor.raw_text
 
 
+def test_render_transfer_schedule_blank_departure_prints_fighting_when_current_equals_new_companion() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            new_companion="Ben Park",
+            dep_terminal="-",
+            staying=False,
+        ),
+        _person(
+            pid="2",
+            first="Ben",
+            last="Park",
+            current_companion="Alex Kim",
+            dep_terminal="Seoul Station",
+        ),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "화이팅!!!" in actor.raw_text
+    assert "Travel to - with" not in actor.raw_text
+
+
+def test_render_transfer_schedule_blank_departure_does_not_print_fighting_when_current_differs_from_new() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            new_companion="Chris Lee",
+            dep_terminal="-",
+            staying=False,
+        ),
+        _person(
+            pid="2",
+            first="Ben",
+            last="Park",
+            current_companion="Alex Kim",
+            dep_terminal="-",
+        ),
+        _person(
+            pid="3",
+            first="Chris",
+            last="Lee",
+            current_companion="Dana Shin",
+            dep_terminal="-",
+        ),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+    assert "화이팅!!!" not in actor.raw_text
+    assert "Travel to - with Ben Park." in actor.raw_text
+
+
 def test_render_transfer_schedule_missing_time_uses_0000() -> None:
     people = [
         _person(

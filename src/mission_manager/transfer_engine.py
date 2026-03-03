@@ -57,6 +57,23 @@ def _canonical_companion_text(raw: str | None) -> str:
     return " & ".join(names) if names else "-"
 
 
+def _normalized_companion_tokens(raw: str | None) -> list[str]:
+    tokens: list[str] = []
+    for name in split_companion_names(raw):
+        normalized = normalize_name(name)
+        if normalized:
+            tokens.append(normalized)
+    return sorted(tokens)
+
+
+def _companions_match(raw_a: str | None, raw_b: str | None) -> bool:
+    tokens_a = _normalized_companion_tokens(raw_a)
+    tokens_b = _normalized_companion_tokens(raw_b)
+    if not tokens_a or not tokens_b:
+        return False
+    return tokens_a == tokens_b
+
+
 def is_trainee_name(name: str) -> bool:
     return normalize_name(name) == "trainee"
 
@@ -455,10 +472,7 @@ def _render_person_block(
 
     dep_blank = _is_blank(departure_terminal)
     if dep_blank:
-        all_comp_dep_blank = bool(current_people) and all(
-            _is_blank(cp.departure_terminal) for cp in current_people
-        )
-        if all_comp_dep_blank:
+        if _companions_match(person.current_companion, person.new_companion):
             add(FIGHTING)
             nl()
             add(SEPARATOR)
