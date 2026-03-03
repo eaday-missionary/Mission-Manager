@@ -55,7 +55,9 @@
 
 8. IF Departure Terminal.contains("Subway"):
 - remove the "Subway" text from the Departure Terminal value AND the Arrival Terminal value.
-- print("Travel to " + Departure Terminal + " and ride the " + Departure Time + " to " + Arrival Terminal + ". Leave in time to arrive there at " + Arrival Time + ",  and meet your new companion, " + New Companion + ".")
+- print("Travel to " + Departure Terminal + " and ride the " + Departure Time + " to " + Arrival Terminal + ". Leave in time to arrive there at " + Arrival Time + ".")
+- IF Second Leg? = "no":
+-- print("There, you will meet your new companion, " + New Companion + ".")
 - /newline/
 ELSE:
 - print("Departure Location: " + Departure Terminal)
@@ -72,6 +74,7 @@ ELSE:
 - Skip step 10.
 - IF Second Leg = "yes" AND Arrival Terminal is NOT EQUAL to 2nd Departure Terminal:
 -- print("WARNING You need to travel to " + 2nd Departure Terminal + " for your second leg of travel.")
+-- /newline/
 
 10. IF Staying or Leaving? = "No":
 - print("Notes: " + NOTES)
@@ -139,6 +142,7 @@ Preserve Hangul + UTF-8.
 /newline/
 ------------------------- 분당 E2 -------------------------
 
+- IF there is an area that contains multiple companionships, those companionships should be adjacent together. Each companionship should still have its own area header. Most areas will have slightly different names, but if they both contain the same Korean name, they should be put adjacent to each other. For example, if one area header is labeled "분당 E2", and another is labeled "분당 E1", or "1 분당 E1", those should be placed adjacent to each other in the final list. If there are multiple of such occurrences, it does not matter which order they are placed in, as long as they are all near each other and in the same zone section.
 
 ===EXAMPLE OUTPUT===
 
@@ -166,7 +170,7 @@ Drop off Justin Pugmire at 성남역. Wait at 성남역 until your new companion
 
 ---------------
 
-------------------------- 2 대전 1 -------------------------
+------------------------- 2 분당 1 -------------------------
 
 Francis Galligao
 

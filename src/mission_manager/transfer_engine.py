@@ -14,6 +14,7 @@ SUJI_TRAINING = "\uc218\uc9c0 Training"
 SEPARATOR = "---------------"
 FIGHTING = "\ud654\uc774\ud305!!!"
 SUBWAY_TOKEN = re.compile(r"subway", re.IGNORECASE)
+HANGUL_TOKEN = re.compile(r"[가-힣]+")
 
 
 @dataclass
@@ -112,6 +113,28 @@ def _zone_label(person: PersonRecord) -> str:
 
 def _area_label(person: PersonRecord) -> str:
     return (person.current_area or "-").strip() or "-"
+
+
+def _area_family_key(area: str) -> str:
+    match = HANGUL_TOKEN.search(area)
+    if match:
+        return match.group(0)
+    return normalize_name(area) or "-"
+
+
+def _area_title_suffix(members: list[PersonRecord]) -> str:
+    if not members:
+        return ""
+    normalized_titles: list[str] = []
+    for member in members:
+        title = (member.title or "").strip().upper()
+        if title not in {"S", "E"}:
+            return ""
+        normalized_titles.append(title)
+    first = normalized_titles[0]
+    if all(value == first for value in normalized_titles):
+        return f" {first}"
+    return ""
 
 
 def _contains_subway(value: str | None) -> bool:
@@ -343,10 +366,19 @@ def _ordered_companionship_groups(people: list[PersonRecord]) -> list[_Companion
                 by_key[key] = []
             by_key[key].append(person)
 
+        family_order: list[str] = []
+        groups_by_family: dict[str, list[_CompanionshipGroup]] = {}
         for key in key_order:
             members = _arrange_group_members(by_key[key])
             area = _area_label(members[0]) if members else "-"
-            groups.append(_CompanionshipGroup(zone=zone, area=area, key=key, members=members))
+            group = _CompanionshipGroup(zone=zone, area=area, key=key, members=members)
+            family_key = _area_family_key(area)
+            if family_key not in groups_by_family:
+                family_order.append(family_key)
+                groups_by_family[family_key] = []
+            groups_by_family[family_key].append(group)
+        for family_key in family_order:
+            groups.extend(groups_by_family[family_key])
     return groups
 
 
@@ -402,12 +434,11 @@ def _render_person_block(
     )
 
     add(person_name)
+    nl()
     if top_warnings:
         for warning_line in top_warnings:
             add(warning_line)
             nl()
-    else:
-        nl()
 
     if (
         _contains_subway(person.new_zone)
@@ -486,8 +517,11 @@ def _render_person_block(
         cleaned_arr = _cleanup_subway_terminal(person.arrival_terminal)
         subway_line = _line_or_dash(person.departure_time)
         add(
-            f"Travel to {cleaned_dep} and ride the {subway_line} line to {cleaned_arr}. Leave in time to arrive there at {_time_or_default(person.arrival_time)},  and meet your new companion, {new_companion_text}."
+            f"Travel to {cleaned_dep} and ride the {subway_line} to {cleaned_arr}. Leave in time to arrive there at {_time_or_default(person.arrival_time)}."
         )
+        if not person.second_leg:
+            add(f"There, you will meet your new companion, {new_companion_text}.")
+        nl()
     else:
         add(f"Departure Location: {departure_terminal}")
         add(f"Departure Time: {_time_or_default(person.departure_time)}")
@@ -504,6 +538,7 @@ def _render_person_block(
             add(
                 f"WARNING You need to travel to {second_departure_terminal or '-'} for your second leg of travel."
             )
+            nl()
     else:
         wait = _needs_wait_for_new_companion(
             new_comp_final,
@@ -529,7 +564,7 @@ def _render_person_block(
             cleaned_arr_2 = _cleanup_subway_terminal(person.second_arrival_terminal)
             subway_line_2 = _line_or_dash(person.second_departure_time)
             add(
-                f"Travel to {cleaned_dep_2} and ride the {subway_line_2} line to {cleaned_arr_2}. Leave in time to arrive there at {_time_or_default(person.second_arrival_time)},  and meet your new companion, {new_companion_text}."
+                f"Travel to {cleaned_dep_2} and ride the {subway_line_2} to {cleaned_arr_2}. Leave in time to arrive there at {_time_or_default(person.second_arrival_time)},  and meet your new companion, {new_companion_text}."
             )
         else:
             add(f"Departure Location: {second_departure_terminal or '-'}")
@@ -600,7 +635,7 @@ def render_transfer_schedule(people: list[PersonRecord]) -> RenderResult:
                 block_kind="area_header",
                 current_zone=group.zone,
                 render_order=order,
-                raw_text=f"------------------------- {group.area} -------------------------",
+                raw_text=f"------------------------- {group.area}{_area_title_suffix(group.members)} -------------------------",
             )
         )
         order += 1
