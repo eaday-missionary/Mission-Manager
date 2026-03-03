@@ -272,14 +272,14 @@ def test_render_transfer_schedule_no_ticket_warning_when_cleanup_results_in_blan
     assert "WARNING - You must purchase" not in actor.raw_text
 
 
-def test_render_transfer_schedule_rule16_warning_appears_on_suji_early_return() -> None:
+def test_render_transfer_schedule_rule16_warning_appears_when_new_zone_contains_subway() -> None:
     people = [
         _person(
             pid="1",
             first="Alex",
             last="Kim",
             current_companion="Ben Park",
-            new_zone="수지 Training",
+            new_zone="Gangnam subway Transfer",
             dep_terminal="Subway",
             second_leg=True,
             dep2_terminal="Daejeon",

@@ -410,8 +410,8 @@ def _render_person_block(
         nl()
 
     if (
-        normalize_name(person.new_zone) == normalize_name(SUJI_TRAINING)
-        and normalize_name(raw_departure_terminal) == normalize_name(SUBWAY)
+        _contains_subway(person.new_zone)
+        and _contains_subway(raw_departure_terminal)
     ):
         add("Arrive at the mission office before 10:45.")
         nl()

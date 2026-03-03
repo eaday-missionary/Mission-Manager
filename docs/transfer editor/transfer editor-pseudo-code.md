@@ -22,7 +22,7 @@
 /newline/
 
 2. IF New Zone = "수지 Training":
-- IF New Zone = "수지 Training" AND Departure Terminal = "Subway":
+- IF New Zone = "수지 Training" AND Departure Terminal.contains("Subway"):
 -- print("Arrive at the mission office before 10:45.")
 -- Skip all other instructions except for step 14.
 
