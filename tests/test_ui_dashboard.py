@@ -1,9 +1,11 @@
 import tkinter as tk
+from tkinter import ttk
 from types import SimpleNamespace
 
 import pytest
 
 from mission_manager.constants import PERSON_FIELDS
+from mission_manager.ui.app import MissionManagerApp
 from mission_manager.ui.dashboard_view import DashboardView
 
 
@@ -174,4 +176,35 @@ def test_dashboard_includes_title_column_and_dash_display_for_blank_title() -> N
     assert "title" in view.tree.cget("columns")
     row_values = view.tree.item("row-1", "values")
     assert row_values[PERSON_FIELDS.index("title")] == "-"
+    root.destroy()
+
+
+def test_dashboard_theme_keeps_controls_readable(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    class _FakeService:
+        def load_local_dataset(self):
+            return SimpleNamespace(
+                record_count=0,
+                schema_version=1,
+                last_imported_at=None,
+                source_file_name=None,
+                recovery_notice=None,
+            )
+
+    monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: _FakeService())
+    app = MissionManagerApp(root)
+    style = ttk.Style(root)
+
+    assert style.theme_use() == "clam"
+    assert style.lookup("Mode.TButton", "foreground") == "#E8ECF1"
+    assert style.lookup("Mode.TButton", "background") == "#202632"
+    assert style.lookup("ModeActive.TButton", "foreground") == "#FFFFFF"
+    assert style.lookup("ModeActive.TButton", "background") == "#3B82F6"
+    assert style.lookup("Treeview.Heading", "foreground") == "#E8ECF1"
+    assert style.lookup("Treeview.Heading", "background") == "#1A1E25"
     root.destroy()

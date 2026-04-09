@@ -25,8 +25,10 @@ mission-manager
 ## 3) Run tests
 
 ```powershell
-pytest
+python -m pytest -q
 ```
+
+If Tk-based UI tests skip because Tcl/Tk is not initializing on Windows, verify the base Python install includes a working `tcl\tcl8.6` and `tcl\tk8.6` runtime.
 
 ## Local dashboard data
 

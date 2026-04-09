@@ -117,6 +117,7 @@ class TransferEditorView(ttk.Frame):
 
         self._bind_cards_scroll_events_recursive(self.cards_canvas)
         self._bind_cards_scroll_events_recursive(self.cards_frame)
+        self.bind("<Destroy>", self._on_destroy, add="+")
 
     def show_loading(self, message: str = "Loading transfer schedule...") -> None:
         self.status_var.set(message)
@@ -498,26 +499,33 @@ class TransferEditorView(ttk.Frame):
             self._bind_cards_scroll_events_recursive(child)
 
     def _schedule_cards_scrollregion_update(self) -> None:
-        if self._cards_scrollregion_after_id is not None:
+        if not self.winfo_exists() or not self.cards_canvas.winfo_exists():
             return
-        self._cards_scrollregion_after_id = self.cards_canvas.after_idle(
-            self._refresh_cards_scrollregion
-        )
+        self._refresh_cards_scrollregion()
 
     def _refresh_cards_scrollregion(self) -> None:
         self._cards_scrollregion_after_id = None
-        self.cards_canvas.configure(scrollregion=self.cards_canvas.bbox("all"))
+        if not self.winfo_exists() or not self.cards_canvas.winfo_exists():
+            return
+        try:
+            self.cards_canvas.configure(scrollregion=self.cards_canvas.bbox("all"))
+        except tk.TclError:
+            return
 
     def _ensure_cards_geometry_ready(self) -> None:
-        if self._cards_scrollregion_after_id is not None:
-            self.cards_canvas.after_cancel(self._cards_scrollregion_after_id)
-            self._cards_scrollregion_after_id = None
+        if not self.winfo_exists() or not self.cards_canvas.winfo_exists():
+            return
         self.cards_canvas.update_idletasks()
         self.cards_frame.update_idletasks()
         self._update_centering_spacers()
         self._refresh_cards_scrollregion()
         self.cards_canvas.update_idletasks()
         self.cards_frame.update_idletasks()
+
+    def _on_destroy(self, event: tk.Event) -> None:
+        if event.widget is not self:
+            return
+        self._cards_scrollregion_after_id = None
 
     def _create_centering_spacers(self) -> None:
         self.cards_frame.columnconfigure(0, weight=1)

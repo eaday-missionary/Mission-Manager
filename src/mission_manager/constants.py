@@ -42,6 +42,10 @@ HEADER_ALIASES = {
     "Arriving Terminal 2": "2nd Arrival Terminal",
 }
 
+UNSUPPORTED_HEADER_WARNINGS = {
+    "Third Leg?": "Unsupported column ignored: Third Leg? (third-leg travel is not supported).",
+}
+
 HEADER_TO_FIELD = {
     "First Name": "first_name",
     "Last Name": "last_name",

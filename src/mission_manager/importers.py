@@ -6,7 +6,15 @@ from datetime import datetime, time
 from pathlib import Path
 from typing import Any, Iterable
 
-from .constants import BOOLEAN_FALSE, BOOLEAN_TRUE, CANONICAL_HEADERS, HEADER_ALIASES, HEADER_TO_FIELD, PERSON_FIELDS
+from .constants import (
+    BOOLEAN_FALSE,
+    BOOLEAN_TRUE,
+    CANONICAL_HEADERS,
+    HEADER_ALIASES,
+    HEADER_TO_FIELD,
+    PERSON_FIELDS,
+    UNSUPPORTED_HEADER_WARNINGS,
+)
 from .models import ParsedDataset, ValidationError
 
 
@@ -69,6 +77,20 @@ def validate_headers(headers: list[str]) -> tuple[list[str], list[str]]:
     missing = sorted(required - found)
     unexpected = sorted(h for h in found - required if h)
     return missing, unexpected
+
+
+def _unexpected_header_warnings(unexpected: list[str]) -> list[str]:
+    warnings: list[str] = []
+    remaining: list[str] = []
+    for header in unexpected:
+        warning = UNSUPPORTED_HEADER_WARNINGS.get(header)
+        if warning:
+            warnings.append(warning)
+        else:
+            remaining.append(header)
+    if remaining:
+        warnings.append(f"Ignoring unknown columns: {', '.join(remaining)}")
+    return warnings
 
 
 def _identity_key(record: dict[str, Any]) -> tuple[str, str, str]:
@@ -153,8 +175,7 @@ def parse_records_from_rows(headers: list[str], rows: Iterable[Iterable[Any]], s
 
         deduped[_identity_key(record)] = record
 
-    if unexpected:
-        warnings.append(f"Ignoring unknown columns: {', '.join(unexpected)}")
+    warnings.extend(_unexpected_header_warnings(unexpected))
 
     return ParsedDataset(list(deduped.values()), processed, skipped, errors, warnings)
 
