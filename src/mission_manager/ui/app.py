@@ -88,6 +88,7 @@ class MissionManagerApp:
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         self.root.bind("<Control-f>", self._focus_transfer_search)
         self.root.bind("<Control-F>", self._focus_transfer_search)
+        self.root.bind("<Destroy>", self._on_root_destroy, add="+")
 
         self._sync_startup_state()
 
@@ -124,7 +125,7 @@ class MissionManagerApp:
         style.map(
             "TButton",
             background=[("active", accent_hover), ("pressed", accent_hover), ("disabled", "#334155")],
-            foreground=[("disabled", "#94A3B8")],
+            foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF"), ("disabled", "#94A3B8")],
         )
         style.configure(
             "Mode.TButton",
@@ -175,7 +176,11 @@ class MissionManagerApp:
         )
         style.configure("TNotebook", background=bg, borderwidth=0)
         style.configure("TNotebook.Tab", background=panel, foreground=text, padding=(12, 8))
-        style.map("TNotebook.Tab", background=[("selected", card), ("active", panel)])
+        style.map(
+            "TNotebook.Tab",
+            background=[("selected", card), ("active", panel)],
+            foreground=[("selected", text), ("active", text)],
+        )
         style.configure(
             "Treeview",
             background=panel,
@@ -445,6 +450,18 @@ class MissionManagerApp:
         self.notebook.select(target_tab)
         if target_tab == str(self.dashboard_view):
             self._select_dashboard_row(person_id)
+
+    def _on_root_destroy(self, event: tk.Event) -> None:
+        if event.widget is not self.root:
+            return
+        if self._refresh_after_id is None:
+            return
+        try:
+            self.root.after_cancel(self._refresh_after_id)
+        except tk.TclError:
+            pass
+        finally:
+            self._refresh_after_id = None
 
 
 def run_app() -> None:

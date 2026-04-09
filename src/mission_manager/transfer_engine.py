@@ -8,6 +8,30 @@ from typing import Iterable, Literal
 from uuid import uuid4
 
 from .models import PersonRecord, ScheduleBlock, ScheduleError
+from .transfer_handoffs import (
+    DropoffPlan,
+    HandoffResolution,
+    MEETUP_COORDINATION_MESSAGE,
+    arrival_reference,
+    changing_companion_names,
+    cleanup_subway_terminal as shared_cleanup_subway_terminal,
+    compare_handoff,
+    contains_subway as shared_contains_subway,
+    display_name as shared_display_name,
+    final_arrival_time as shared_final_arrival_time,
+    has_companion_overlap,
+    is_blank as shared_is_blank,
+    is_trainee_name as shared_is_trainee_name,
+    normalize_name as shared_normalize_name,
+    normalized_time_display as shared_normalized_time_display,
+    parse_time_minutes as shared_parse_time_minutes,
+    pickup_mismatch_review,
+    resolve_current_companion_dropoff_plan,
+    resolve_new_companion_availability,
+    split_companion_names as shared_split_companion_names,
+    terminal_split_review,
+    time_to_minutes as shared_time_to_minutes,
+)
 
 SUBWAY = "Subway"
 SUJI_TRAINING = "\uc218\uc9c0 Training"
@@ -33,28 +57,31 @@ class _CompanionshipGroup:
 
 
 def normalize_name(value: str | None) -> str:
-    if not value:
-        return ""
-    return " ".join(value.strip().split()).lower()
+    return shared_normalize_name(value)
 
 
 def display_name(person: PersonRecord) -> str:
-    return f"{(person.first_name or '').strip()} {(person.last_name or '').strip()}".strip()
+    return shared_display_name(person)
 
 
 def split_companion_names(raw: str | None) -> list[str]:
-    if not raw:
-        return []
-    return [
-        " ".join(part.split())
-        for part in re.split(r"[&,]", raw)
-        if part and part.strip()
-    ]
+    return shared_split_companion_names(raw)
 
 
 def _canonical_companion_text(raw: str | None) -> str:
     names = split_companion_names(raw)
     return " & ".join(names) if names else "-"
+
+
+def _canonical_companion_text_from_names(names: list[str]) -> str:
+    return " & ".join(names) if names else "-"
+
+
+def _changing_new_companion_text(person: PersonRecord) -> str:
+    names = changing_companion_names(person.new_companion, person.current_companion)
+    if not names and has_companion_overlap(person.current_companion, person.new_companion):
+        names = split_companion_names(person.new_companion)
+    return _canonical_companion_text_from_names(names) if names else _canonical_companion_text(person.new_companion)
 
 
 def _normalized_companion_tokens(raw: str | None) -> list[str]:
@@ -75,53 +102,31 @@ def _companions_match(raw_a: str | None, raw_b: str | None) -> bool:
 
 
 def is_trainee_name(name: str) -> bool:
-    return normalize_name(name) == "trainee"
+    return shared_is_trainee_name(name)
 
 
 def _time_to_minutes(value: str | None) -> int:
-    if not value:
-        return 0
-    try:
-        hh, mm = value.split(":", 1)
-        return int(hh) * 60 + int(mm)
-    except Exception:
-        return 0
+    return shared_time_to_minutes(value)
 
 
 def _parse_time_minutes(value: str | None) -> int | None:
-    if not value:
-        return None
-    text = value.strip()
-    if not text:
-        return None
-    parts = text.split(":", 1)
-    if len(parts) != 2:
-        return None
-    try:
-        hh = int(parts[0])
-        mm = int(parts[1])
-    except Exception:
-        return None
-    if hh < 0 or hh > 23 or mm < 0 or mm > 59:
-        return None
-    return (hh * 60) + mm
+    return shared_parse_time_minutes(value)
 
 
 def _time_or_default(value: str | None) -> str:
     return value if value else "00:00"
 
 
+def _normalized_time_display(value: str | None) -> str:
+    return shared_normalized_time_display(value)
+
+
 def _final_arrival_time(person: PersonRecord) -> str | None:
-    if person.second_leg and person.second_arrival_time:
-        return person.second_arrival_time
-    return person.arrival_time
+    return shared_final_arrival_time(person)
 
 
 def _is_blank(value: str | None) -> bool:
-    if value is None:
-        return True
-    text = value.strip()
-    return text == "" or text == "-"
+    return shared_is_blank(value)
 
 
 def _zone_label(person: PersonRecord) -> str:
@@ -155,7 +160,7 @@ def _area_title_suffix(members: list[PersonRecord]) -> str:
 
 
 def _contains_subway(value: str | None) -> bool:
-    return bool(value and SUBWAY_TOKEN.search(value))
+    return shared_contains_subway(value)
 
 
 def _line_or_dash(value: str | None) -> str:
@@ -165,32 +170,7 @@ def _line_or_dash(value: str | None) -> str:
 
 
 def _cleanup_subway_terminal(value: str | None) -> str:
-    if _is_blank(value):
-        return "-"
-    cleaned = SUBWAY_TOKEN.sub("", value or "")
-    cleaned = re.sub(r"\s{2,}", " ", cleaned)
-    cleaned = re.sub(r"\s*([,/])\s*", r"\1 ", cleaned)
-    cleaned = cleaned.strip(" -/,")
-    cleaned = " ".join(cleaned.split())
-    return cleaned if cleaned else "-"
-
-
-def _needs_wait_for_new_companion(
-    new_comp_final_time: str | None,
-    candidate_times: list[str | None],
-) -> bool:
-    new_comp_minutes = _parse_time_minutes(new_comp_final_time)
-    if new_comp_minutes is None:
-        return False
-    comparisons: list[bool] = []
-    for candidate in candidate_times:
-        candidate_minutes = _parse_time_minutes(candidate)
-        if candidate_minutes is None:
-            continue
-        comparisons.append(new_comp_minutes > candidate_minutes)
-    if not comparisons:
-        return False
-    return any(comparisons)
+    return shared_cleanup_subway_terminal(value)
 
 
 def _top_ticket_warnings(
@@ -241,12 +221,9 @@ def build_people_lookup(people: Iterable[PersonRecord]) -> dict[str, PersonRecor
     return _build_people_index(people)
 
 
-def _resolve_people_by_names(
+def _lookup_people_by_names(
     names: list[str],
     people_by_name: dict[str, PersonRecord],
-    actor: PersonRecord,
-    errors: list[ScheduleError],
-    field: str,
 ) -> list[PersonRecord]:
     found: list[PersonRecord] = []
     for raw_name in names:
@@ -254,58 +231,141 @@ def _resolve_people_by_names(
         if not lookup or is_trainee_name(lookup):
             continue
         person = people_by_name.get(lookup)
-        if not person:
-            errors.append(
-                ScheduleError(
-                    code="DATA_CONFLICT",
-                    message=f"Companion row not found for '{raw_name}'.",
-                    person_id=actor.id,
-                    field=field,
-                    suggested_action="Verify companion spelling and ensure that person exists in dashboard data.",
-                )
-            )
-            continue
-        found.append(person)
+        if person:
+            found.append(person)
     return found
 
 
-def _best_companion(people: list[PersonRecord]) -> PersonRecord | None:
-    if not people:
-        return None
-    return sorted(people, key=lambda p: normalize_name(display_name(p)))[0]
-
-
-def _companion_departure_time(person: PersonRecord | None) -> str | None:
-    if not person:
-        return None
-    return person.departure_time
-
-
-def _companion_departure_terminal(person: PersonRecord | None) -> str:
-    if not person or _is_blank(person.departure_terminal):
-        return "-"
-    return person.departure_terminal or "-"
-
-
-def _new_companion_final_arrival(
-    actor: PersonRecord,
-    people_by_name: dict[str, PersonRecord],
+def _merge_render_errors(
     errors: list[ScheduleError],
-) -> str | None:
-    targets = _resolve_people_by_names(
-        split_companion_names(actor.new_companion),
-        people_by_name,
-        actor,
-        errors,
-        "new_companion",
+    block_errors: list[ScheduleError],
+) -> list[str]:
+    inline_messages: list[str] = []
+    seen_inline: set[str] = set()
+    seen_errors = {
+        (error.code, error.message, error.person_id, error.field)
+        for error in errors
+    }
+    for error in block_errors:
+        key = (error.code, error.message, error.person_id, error.field)
+        if key not in seen_errors:
+            errors.append(error)
+            seen_errors.add(key)
+        if not _should_inline_error(error):
+            continue
+        inline = f"ERROR: {error.message}"
+        if inline not in seen_inline:
+            inline_messages.append(inline)
+            seen_inline.add(inline)
+    return inline_messages
+
+
+def _should_inline_error(error: ScheduleError) -> bool:
+    if error.code != "HANDOFF_REVIEW":
+        return True
+    lowered = error.message.lower()
+    return not (
+        "multiple new companions, manual confirmation required" in lowered
+        or "manual inspection required because companions are leaving from different terminals" in lowered
+        or "companion pickup error" in lowered
     )
-    if not targets:
-        return None
-    times = [_final_arrival_time(p) for p in targets]
-    times = [t for t in times if t]
-    if not times:
-        return None
-    return sorted(times, key=_time_to_minutes)[-1]
+
+
+def _has_departure_anchor(reference: HandoffResolution) -> bool:
+    return bool(reference.contributor_ids)
+
+
+def _traveler_handoff_candidates(
+    person: PersonRecord,
+    current_departure_reference: HandoffResolution,
+    *,
+    second_leg: bool,
+) -> list[HandoffResolution]:
+    candidates = [arrival_reference(person, second_leg=second_leg)]
+    if _has_departure_anchor(current_departure_reference):
+        candidates.append(current_departure_reference)
+    return candidates
+
+
+def _staying_handoff_lines(
+    *,
+    new_companion_text: str,
+    dropoff_plan: DropoffPlan,
+    comparison_status: str,
+    new_comp_availability: HandoffResolution,
+    communicate_meetup: bool,
+    pickup_mismatch: bool,
+) -> list[str]:
+    if comparison_status == "review":
+        terminal = dropoff_plan.final_reference.terminal
+        if terminal != "-" and dropoff_plan.stops:
+            return [f"Drop off {dropoff_plan.stops[-1].person_name} at {terminal}. ERROR - Manual review required for companion handoff."]
+        return ["ERROR - Manual review required for companion handoff."]
+    if communicate_meetup:
+        lines = [
+            f"Drop off {stop.person_name} at {stop.terminal}."
+            for stop in dropoff_plan.stops
+        ]
+        lines.append(MEETUP_COORDINATION_MESSAGE)
+        return lines or [MEETUP_COORDINATION_MESSAGE]
+    if not dropoff_plan.stops:
+        return [f"Your new companion, {new_companion_text}, will arrive at {new_comp_availability.display_time}."]
+
+    lines = [
+        f"Drop off {stop.person_name} at {stop.terminal}."
+        for stop in dropoff_plan.stops[:-1]
+    ]
+    last_stop = dropoff_plan.stops[-1]
+    last_prefix = f"Drop off {last_stop.person_name} at {last_stop.terminal}."
+    if pickup_mismatch:
+        lines.append(last_prefix)
+        lines.append(f"[New companion is arriving at {new_comp_availability.terminal}]")
+        return lines
+    if comparison_status == "wait":
+        lines.append(
+            f"{last_prefix} Wait at {last_stop.terminal} until your new companion, "
+            f"{new_companion_text}, arrives there at {new_comp_availability.display_time}."
+        )
+        return lines
+    lines.append(f"{last_prefix} Your new companion, {new_companion_text}, will be waiting.")
+    return lines
+
+
+def _pre_dropoff_lines(
+    person: PersonRecord,
+    dropoff_plan: DropoffPlan,
+) -> list[str]:
+    actor_dep = _parse_time_minutes(person.departure_time)
+    if actor_dep is None:
+        return []
+    lines: list[str] = []
+    for stop in dropoff_plan.stops:
+        if stop.fallback_used or stop.minutes >= actor_dep:
+            continue
+        lines.append(f"Drop off {stop.person_name} at {stop.terminal}.")
+    return lines
+
+
+def _note_handoff_sentence(
+    *,
+    new_companion_text: str,
+    comparison_status: str,
+    new_comp_availability: HandoffResolution,
+    second_leg: bool,
+    communicate_meetup: bool,
+) -> str:
+    prefix = "Notes: "
+    if communicate_meetup:
+        return f"{prefix}{MEETUP_COORDINATION_MESSAGE}"
+    if comparison_status == "review":
+        return f"{prefix}ERROR - Manual review required for companion handoff."
+    if comparison_status == "wait":
+        if second_leg:
+            return f"{prefix}Wait for your companion {new_companion_text} who will arrive at {new_comp_availability.display_time}."
+        return f"{prefix}Upon arrival, wait for your companion {new_companion_text} who will arrive at {new_comp_availability.display_time}."
+    if second_leg:
+        return f"{prefix}Your companion {new_companion_text} will be waiting for you."
+    return f"{prefix}Upon arrival, your companion {new_companion_text} will be waiting for you."
 
 
 def _starting_companionship_key(person: PersonRecord) -> str:
@@ -413,19 +473,26 @@ def _render_person_block(
         lines.append("")
 
     person_name = display_name(person)
-    current_names = split_companion_names(person.current_companion)
     current_companion_text = _canonical_companion_text(person.current_companion)
-    new_companion_text = _canonical_companion_text(person.new_companion)
+    new_companion_text = _changing_new_companion_text(person)
 
-    current_people = _resolve_people_by_names(
-        current_names, people_by_name, person, errors, "current_companion"
+    new_comp_availability = resolve_new_companion_availability(person, people_by_name)
+    dropoff_plan = resolve_current_companion_dropoff_plan(
+        person,
+        people_by_name,
+        include_actor=False,
+        preferred_last_terminal=new_comp_availability.terminal if person.staying is True else None,
+        collect_issues=True,
     )
-    current_primary = _best_companion(current_people)
-    current_departure_time = _companion_departure_time(current_primary)
-    current_departure_terminal = _companion_departure_terminal(current_primary)
-
-    new_comp_final = _new_companion_final_arrival(person, people_by_name, errors)
-    new_comp_final_display = _time_or_default(new_comp_final)
+    current_departure_reference = dropoff_plan.final_reference
+    block_errors = list(dropoff_plan.issues) + list(new_comp_availability.issues)
+    terminal_split = terminal_split_review(person, people_by_name)
+    if terminal_split:
+        block_errors.append(terminal_split.issue)
+    pickup_review = pickup_mismatch_review(person, dropoff_plan, new_comp_availability)
+    if pickup_review:
+        block_errors.append(pickup_review.issue)
+    inline_errors = _merge_render_errors(errors, block_errors)
 
     raw_departure_terminal = person.departure_terminal
     raw_second_departure_terminal = person.second_departure_terminal
@@ -456,9 +523,13 @@ def _render_person_block(
         for warning_line in top_warnings:
             add(warning_line)
             nl()
+    if inline_errors:
+        for error_line in inline_errors:
+            add(error_line)
+            nl()
 
     if (
-        _contains_subway(person.new_zone)
+        normalize_name(person.new_zone) == normalize_name(SUJI_TRAINING)
         and _contains_subway(raw_departure_terminal)
     ):
         add("Arrive at the mission office before 10:45.")
@@ -482,18 +553,23 @@ def _render_person_block(
             add(f"please arrive at the {person.pre_travel} apartment by Thursday night")
 
         if person.staying is True:
-            wait = _needs_wait_for_new_companion(
-                new_comp_final,
-                [current_departure_time],
+            comparison_status = (
+                compare_handoff(
+                    new_comp_availability,
+                    [current_departure_reference],
+                ).status
+                if _has_departure_anchor(current_departure_reference)
+                else "other_waits"
             )
-            if wait:
-                add(
-                    f"Drop off {current_companion_text} at {current_departure_terminal}. Wait at {current_departure_terminal} until your new companion, {new_companion_text}, arrives there at {new_comp_final_display}."
-                )
-            else:
-                add(
-                    f"Drop off {current_companion_text} at {current_departure_terminal}. Your new companion, {new_companion_text}, will be waiting."
-                )
+            for handoff_line in _staying_handoff_lines(
+                    new_companion_text=new_companion_text,
+                    dropoff_plan=dropoff_plan,
+                    comparison_status=comparison_status,
+                    new_comp_availability=new_comp_availability,
+                    communicate_meetup=new_comp_availability.coordination_required,
+                    pickup_mismatch=pickup_review is not None,
+                ):
+                add(handoff_line)
             nl()
             add(SEPARATOR)
             return "\n".join(lines)
@@ -507,21 +583,30 @@ def _render_person_block(
         add(f"please arrive at the {person.pre_travel} apartment by Thursday night")
 
     if person.staying is True:
-        wait = _needs_wait_for_new_companion(
-            new_comp_final,
-            [current_departure_time],
+        comparison_status = (
+            compare_handoff(
+                new_comp_availability,
+                [current_departure_reference],
+            ).status
+            if _has_departure_anchor(current_departure_reference)
+            else "other_waits"
         )
-        if wait:
-            add(
-                f"Drop off {current_companion_text} at {current_departure_terminal}. Wait at {current_departure_terminal} until your new companion, {new_companion_text}, arrives there at {new_comp_final_display}."
-            )
-        else:
-            add(
-                f"Drop off {current_companion_text} at {current_departure_terminal}. Your new companion, {new_companion_text}, will be waiting."
-            )
+        for handoff_line in _staying_handoff_lines(
+                new_companion_text=new_companion_text,
+                dropoff_plan=dropoff_plan,
+                comparison_status=comparison_status,
+                new_comp_availability=new_comp_availability,
+                communicate_meetup=new_comp_availability.coordination_required,
+                pickup_mismatch=pickup_review is not None,
+            ):
+            add(handoff_line)
         nl()
         add(SEPARATOR)
         return "\n".join(lines)
+
+    for dropoff_line in _pre_dropoff_lines(person, dropoff_plan):
+        add(dropoff_line)
+        nl()
 
     add(f"Travel to {departure_terminal} with {current_companion_text}.")
     nl()
@@ -548,22 +633,30 @@ def _render_person_block(
             nl()
 
     if person.second_leg:
-        if normalize_name(person.arrival_terminal) != normalize_name(second_departure_terminal):
+        cleaned_first_arrival = _cleanup_subway_terminal(person.arrival_terminal)
+        if normalize_name(cleaned_first_arrival) != normalize_name(second_departure_terminal):
             add(
                 f"WARNING You need to travel to {second_departure_terminal or '-'} for your second leg of travel."
             )
             nl()
     else:
-        wait = _needs_wait_for_new_companion(
-            new_comp_final,
-            [person.arrival_time, current_departure_time],
+        comparison = compare_handoff(
+            new_comp_availability,
+            _traveler_handoff_candidates(
+                person,
+                current_departure_reference,
+                second_leg=False,
+            ),
         )
-        if wait:
-            add(
-                f"Notes: Upon arrival, wait for your companion {new_companion_text} who will arrive at {new_comp_final_display}."
+        add(
+            _note_handoff_sentence(
+                new_companion_text=new_companion_text,
+                comparison_status=comparison.status,
+                new_comp_availability=new_comp_availability,
+                second_leg=False,
+                communicate_meetup=new_comp_availability.coordination_required,
             )
-        else:
-            add(f"Notes: Upon arrival, your companion {new_companion_text} will be waiting for you.")
+        )
         nl()
 
     if person.second_leg:
@@ -588,14 +681,23 @@ def _render_person_block(
             add(f"Arrival Location: {person.second_arrival_terminal or '-'}")
             nl()
 
-        wait_second = _needs_wait_for_new_companion(
-            new_comp_final,
-            [person.second_arrival_time, current_departure_time],
+        comparison_second = compare_handoff(
+            new_comp_availability,
+            _traveler_handoff_candidates(
+                person,
+                current_departure_reference,
+                second_leg=True,
+            ),
         )
-        if wait_second:
-            add(f"Notes: Wait for your companion {new_companion_text} who will arrive at {new_comp_final_display}.")
-        else:
-            add(f"Notes: Your companion {new_companion_text} will be waiting for you.")
+        add(
+            _note_handoff_sentence(
+                new_companion_text=new_companion_text,
+                comparison_status=comparison_second.status,
+                new_comp_availability=new_comp_availability,
+                second_leg=True,
+                communicate_meetup=new_comp_availability.coordination_required,
+            )
+        )
 
     nl()
     add(SEPARATOR)

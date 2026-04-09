@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from types import SimpleNamespace
 
 import pytest
@@ -220,6 +221,26 @@ def test_app_wires_transfer_editor_tab(monkeypatch) -> None:
     assert app.dashboard_view.full_btn.cget("style") == "ModeActive.TButton"
     assert root.title() == "Mission Manager"
 
+    root.destroy()
+
+
+def test_app_theme_uses_clam_and_readable_tab_button_colors(monkeypatch) -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    monkeypatch.setattr("mission_manager.ui.app.DashboardService", lambda: _FakeService())
+    app = MissionManagerApp(root)
+    style = ttk.Style(root)
+
+    assert style.theme_use() == "clam"
+    assert style.lookup("TButton", "foreground") == "#FFFFFF"
+    assert style.lookup("TButton", "background") == "#3B82F6"
+    assert style.lookup("TNotebook.Tab", "foreground") == "#E8ECF1"
+    assert style.lookup("TNotebook.Tab", "background") == "#202632"
+    assert style.lookup("Title.TLabel", "foreground") == "#E8ECF1"
     root.destroy()
 
 

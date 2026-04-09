@@ -5,26 +5,15 @@ from __future__ import annotations
 from uuid import uuid4
 
 from .models import ConflictAnchor, PersonRecord, ScheduleBlock, ScheduleConflict, ScheduleError
-from .transfer_engine import build_people_lookup, display_name, normalize_name, split_companion_names
-
-
-def _parse_time_minutes(value: str | None) -> int | None:
-    if not value:
-        return None
-    text = value.strip()
-    if not text:
-        return None
-    parts = text.split(":", 1)
-    if len(parts) != 2:
-        return None
-    try:
-        hh = int(parts[0])
-        mm = int(parts[1])
-    except Exception:
-        return None
-    if hh < 0 or hh > 23 or mm < 0 or mm > 59:
-        return None
-    return (hh * 60) + mm
+from .transfer_engine import build_people_lookup, display_name, normalize_name
+from .transfer_handoffs import (
+    cleanup_subway_terminal,
+    parse_time_minutes,
+    pickup_mismatch_review,
+    resolve_current_companion_dropoff_plan,
+    resolve_new_companion_availability,
+    terminal_split_review,
+)
 
 
 def _anchor_for(block: ScheduleBlock, token: str | None) -> ConflictAnchor:
@@ -46,14 +35,30 @@ def _build_data_conflict(
     block: ScheduleBlock | None,
 ) -> ScheduleConflict:
     anchors = [_anchor_for(block, None)] if block else []
+    conflict_type = "HANDOFF_REVIEW" if err.code == "HANDOFF_REVIEW" else "DATA_CONFLICT"
     return ScheduleConflict(
         conflict_id=str(uuid4()),
-        conflict_type="DATA_CONFLICT",
+        conflict_type=conflict_type,
         severity="yellow",
         message=err.message,
         affected_people=[err.person_id] if err.person_id else [],
         affected_locations=[err.field] if err.field else [],
         anchors=anchors,
+    )
+
+
+def _is_terminal_split_review_error(err: ScheduleError) -> bool:
+    return (
+        err.code == "HANDOFF_REVIEW"
+        and "manual inspection required because companions are leaving from different terminals"
+        in err.message.lower()
+    )
+
+
+def _is_pickup_review_error(err: ScheduleError) -> bool:
+    return (
+        err.code == "HANDOFF_REVIEW"
+        and "companion pickup error" in err.message.lower()
     )
 
 
@@ -68,6 +73,8 @@ def detect_transfer_conflicts(
     block_by_person_id = {block.person_id: block for block in person_blocks if block.person_id}
 
     for err in render_errors:
+        if _is_terminal_split_review_error(err) or _is_pickup_review_error(err):
+            continue
         block = block_by_person_id.get(err.person_id or "")
         conflicts.append(_build_data_conflict(err, block))
 
@@ -78,41 +85,57 @@ def detect_transfer_conflicts(
 
         person_name = display_name(person)
 
-        current_comp = None
-        for name in split_companion_names(person.current_companion):
-            current_comp = person_by_name.get(normalize_name(name))
-            if current_comp:
-                break
-
-        if current_comp:
-            person_dep_minutes = _parse_time_minutes(person.departure_time)
-            companion_dep_minutes = _parse_time_minutes(current_comp.departure_time)
-            if (
-                person_dep_minutes is not None
-                and companion_dep_minutes is not None
-                and person_dep_minutes < companion_dep_minutes
-            ):
-                conflicts.append(
-                    ScheduleConflict(
-                        conflict_id=str(uuid4()),
-                        conflict_type="TIME_CONFLICT",
-                        severity="red",
-                        message=f"{person_name} has a time conflict in their schedule.",
-                        affected_people=[person.id, current_comp.id],
-                        affected_locations=[
-                            person.departure_terminal or "-",
-                            current_comp.departure_terminal or "-",
-                        ],
-                        anchors=[
-                            _anchor_for(block, person.departure_time),
-                            _anchor_for(block_by_person_id.get(current_comp.id, block), current_comp.departure_time),
-                        ],
-                    )
+        split_review = terminal_split_review(person, person_by_name)
+        if split_review:
+            conflicts.append(
+                ScheduleConflict(
+                    conflict_id=str(uuid4()),
+                    conflict_type="HANDOFF_REVIEW",
+                    severity="yellow",
+                    message=split_review.issue.message,
+                    affected_people=split_review.affected_people,
+                    affected_locations=split_review.affected_locations,
+                    anchors=[
+                        _anchor_for(block, person.departure_time),
+                    ],
                 )
+            )
+
+        new_companion = resolve_new_companion_availability(person, person_by_name)
+        pickup_review = pickup_mismatch_review(
+            person,
+            resolve_current_companion_dropoff_plan(
+                person,
+                person_by_name,
+                include_actor=False,
+                preferred_last_terminal=new_companion.terminal,
+                collect_issues=False,
+            ),
+            new_companion,
+        )
+        if pickup_review:
+            anchor_token = (
+                pickup_review.affected_locations[0]
+                if pickup_review.affected_locations
+                else None
+            )
+            conflicts.append(
+                ScheduleConflict(
+                    conflict_id=str(uuid4()),
+                    conflict_type="HANDOFF_REVIEW",
+                    severity="yellow",
+                    message=pickup_review.issue.message,
+                    affected_people=pickup_review.affected_people,
+                    affected_locations=pickup_review.affected_locations,
+                    anchors=[
+                        _anchor_for(block, anchor_token),
+                    ],
+                )
+            )
 
         if person.second_leg:
-            arrival_minutes = _parse_time_minutes(person.arrival_time)
-            second_dep_minutes = _parse_time_minutes(person.second_departure_time)
+            arrival_minutes = parse_time_minutes(person.arrival_time)
+            second_dep_minutes = parse_time_minutes(person.second_departure_time)
             if (
                 arrival_minutes is not None
                 and second_dep_minutes is not None
@@ -137,7 +160,9 @@ def detect_transfer_conflicts(
                 )
 
         if person.second_leg and person.arrival_terminal and person.second_departure_terminal:
-            if normalize_name(person.arrival_terminal) != normalize_name(person.second_departure_terminal):
+            if normalize_name(cleanup_subway_terminal(person.arrival_terminal)) != normalize_name(
+                cleanup_subway_terminal(person.second_departure_terminal)
+            ):
                 conflicts.append(
                     ScheduleConflict(
                         conflict_id=str(uuid4()),
@@ -145,7 +170,10 @@ def detect_transfer_conflicts(
                         severity="yellow",
                         message=f"{person_name} has a location conflict in their schedule.",
                         affected_people=[person.id],
-                        affected_locations=[person.arrival_terminal, person.second_departure_terminal],
+                        affected_locations=[
+                            cleanup_subway_terminal(person.arrival_terminal),
+                            cleanup_subway_terminal(person.second_departure_terminal),
+                        ],
                         anchors=[
                             _anchor_for(block, person.arrival_terminal),
                             _anchor_for(block, person.second_departure_terminal),

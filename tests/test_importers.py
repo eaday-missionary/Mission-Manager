@@ -228,3 +228,56 @@ def test_invalid_arrival_time_still_fails_validation() -> None:
     assert parsed.errors
     assert parsed.errors[0].code == "ROW_VALIDATION_ERROR"
     assert parsed.errors[0].field == "arrival_time"
+
+
+def test_unsupported_third_leg_column_is_explicitly_flagged() -> None:
+    headers = [
+        "First Name",
+        "Last Name",
+        "Title",
+        "Current Companion",
+        "New Companion",
+        "Current Zone",
+        "Current Area",
+        "New Zone",
+        "New Area",
+        "Staying or leaving?",
+        "Pre Travel",
+        "Departure Terminal",
+        "Departure Time",
+        "Arrival Terminal",
+        "Arrival Time",
+        "Second Leg?",
+        "2nd Departure Terminal",
+        "2nd Departure Time",
+        "2nd Arrival Terminal",
+        "2nd Arrival Time",
+        "Third Leg?",
+    ]
+    rows = [[
+        "Jane",
+        "Smith",
+        "E",
+        "",
+        "",
+        "Zone A",
+        "Area A",
+        "Zone B",
+        "Area B",
+        "yes",
+        "",
+        "ICN",
+        "08:00",
+        "GMP",
+        "09:00",
+        "no",
+        "",
+        "",
+        "",
+        "",
+        "yes",
+    ]]
+
+    parsed = parse_records_from_rows(headers, rows, "sample.xlsm")
+    assert not parsed.errors
+    assert any("Unsupported column ignored: Third Leg?" in warning for warning in parsed.warnings)
