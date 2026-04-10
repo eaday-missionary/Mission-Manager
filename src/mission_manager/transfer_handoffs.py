@@ -7,6 +7,7 @@ import re
 from typing import Literal
 
 from .models import PersonRecord, ScheduleError
+from .time_utils import format_time_display, parse_clock_minutes
 
 SUBWAY_TOKEN = re.compile(r"subway", re.IGNORECASE)
 
@@ -117,23 +118,7 @@ def has_companion_overlap(current_raw: str | None, new_raw: str | None) -> bool:
 
 
 def parse_time_minutes(value: str | None) -> int | None:
-    if not value:
-        return None
-    text = value.strip()
-    if not text:
-        return None
-    parts = text.split(":")
-    if len(parts) not in {2, 3}:
-        return None
-    try:
-        hh = int(parts[0])
-        mm = int(parts[1])
-        ss = int(parts[2]) if len(parts) == 3 else 0
-    except Exception:
-        return None
-    if hh < 0 or hh > 23 or mm < 0 or mm > 59 or ss < 0 or ss > 59:
-        return None
-    return (hh * 60) + mm
+    return parse_clock_minutes(value)
 
 
 def time_to_minutes(value: str | None) -> int:
@@ -144,12 +129,11 @@ def time_to_minutes(value: str | None) -> int:
 
 
 def normalized_time_display(value: str | None) -> str:
-    minutes = parse_time_minutes(value)
-    if minutes is None:
-        return "00:00"
-    hh = minutes // 60
-    mm = minutes % 60
-    return f"{hh:02d}:{mm:02d}"
+    return format_time_display(
+        value,
+        blank_fallback="00:00",
+        preserve_non_time=False,
+    ) or "00:00"
 
 
 def contains_subway(value: str | None) -> bool:

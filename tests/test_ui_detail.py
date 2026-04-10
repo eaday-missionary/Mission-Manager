@@ -94,3 +94,28 @@ def test_detail_view_title_field_is_editable_and_dash_maps_to_blank() -> None:
     patch = view._build_patch()
     assert patch["title"] == "E"
     root.destroy()
+
+
+def test_detail_view_formats_parseable_times_to_hh_mm_in_edit_mode() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = DetailView(root)
+    person = SimpleNamespace(id="person-1", **{field: None for field in view.entries})
+    person.first_name = "Jane"
+    person.last_name = "Smith"
+    person.departure_time = "08:30:00"
+    person.arrival_time = "09:45:59"
+    person.second_departure_time = "yellow line"
+    person.second_arrival_time = "12:05:01"
+
+    view.enter_edit_mode(person)
+
+    assert view.entries["departure_time"].get() == "08:30"
+    assert view.entries["arrival_time"].get() == "09:45"
+    assert view.entries["second_departure_time"].get() == "yellow line"
+    assert view.entries["second_arrival_time"].get() == "12:05"
+    root.destroy()

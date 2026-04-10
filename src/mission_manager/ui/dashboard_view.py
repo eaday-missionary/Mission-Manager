@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from mission_manager.constants import FIELD_TO_HEADER, PERSON_FIELDS, SORT_OPTIONS
+from mission_manager.time_utils import format_time_display
 
 
 class DashboardView(ttk.Frame):
@@ -198,6 +199,12 @@ class DashboardView(ttk.Frame):
             self.new_area.set("All")
 
     def set_people(self, people: list) -> None:
+        time_fields = {
+            "departure_time",
+            "arrival_time",
+            "second_departure_time",
+            "second_arrival_time",
+        }
         for iid in self.tree.get_children():
             self.tree.delete(iid)
         for person in people:
@@ -210,6 +217,12 @@ class DashboardView(ttk.Frame):
                         if value is True
                         else ("No" if value is False else "-")
                     )
+                elif field in time_fields:
+                    display = format_time_display(
+                        value,
+                        blank_fallback="-",
+                        preserve_non_time=True,
+                    ) or "-"
                 else:
                     display = value if value else "-"
                 values.append(display)

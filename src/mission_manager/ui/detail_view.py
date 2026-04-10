@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from mission_manager.constants import FIELD_TO_HEADER, PERSON_FIELDS
+from mission_manager.time_utils import format_time_display
 
 
 class DetailView(ttk.Frame):
@@ -107,6 +108,12 @@ class DetailView(ttk.Frame):
         self._mode = "edit"
         self.current_person_id = person.id
         self.primary_btn.configure(text="Apply")
+        time_fields = {
+            "departure_time",
+            "arrival_time",
+            "second_departure_time",
+            "second_arrival_time",
+        }
         for field, entry in self.entries.items():
             value = getattr(person, field)
             if field in ("staying", "second_leg"):
@@ -116,6 +123,12 @@ class DetailView(ttk.Frame):
                     text = "no"
                 else:
                     text = "-"
+            elif field in time_fields:
+                text = format_time_display(
+                    value,
+                    blank_fallback="-",
+                    preserve_non_time=True,
+                ) or "-"
             else:
                 text = value if value else "-"
             entry.delete(0, "end")

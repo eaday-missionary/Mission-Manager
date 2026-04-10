@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from .constants import APP_NAME, DEFAULT_SORT_DIR, DEFAULT_SORT_FIELD, FILTER_FIELDS, PERSON_FIELDS, SCHEMA_VERSION
 from .models import ConflictAnchor, DatasetState, PersonRecord, ScheduleBlock, ScheduleConflict, ScheduleMetadata
+from .time_utils import normalize_clock_time
 
 
 def utc_now() -> str:
@@ -182,6 +183,34 @@ class StorageRepository:
         columns = {row["name"] for row in rows}
         if "title" not in columns:
             conn.execute("ALTER TABLE people ADD COLUMN title TEXT")
+        self._normalize_people_time_columns(conn)
+
+    def _normalize_people_time_columns(self, conn: sqlite3.Connection) -> None:
+        rows = conn.execute(
+            """
+            SELECT id, departure_time, arrival_time, second_departure_time, second_arrival_time
+            FROM people
+            """
+        ).fetchall()
+        for row in rows:
+            updates: dict[str, str] = {}
+            for field in (
+                "departure_time",
+                "arrival_time",
+                "second_departure_time",
+                "second_arrival_time",
+            ):
+                original = row[field]
+                normalized = normalize_clock_time(original)
+                if normalized is not None and normalized != original:
+                    updates[field] = normalized
+            if not updates:
+                continue
+            assignments = ", ".join(f"{field}=?" for field in updates)
+            conn.execute(
+                f"UPDATE people SET {assignments} WHERE id = ?",
+                (*updates.values(), row["id"]),
+            )
 
     def _migrate_transfer_schedule_blocks(self, conn: sqlite3.Connection) -> None:
         rows = conn.execute("PRAGMA table_info(transfer_schedule_blocks)").fetchall()

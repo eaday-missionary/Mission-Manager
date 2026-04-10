@@ -181,7 +181,7 @@ def test_storage_migrates_people_table_to_add_title_column(tmp_path: Path) -> No
                 success INTEGER NOT NULL,
                 notes TEXT
             );
-            INSERT INTO dataset_meta(key, value) VALUES('schema_version', '2');
+            INSERT INTO dataset_meta(key, value) VALUES('schema_version', '3');
             INSERT INTO dataset_meta(key, value) VALUES('last_imported_at', '');
             INSERT INTO dataset_meta(key, value) VALUES('record_count', '0');
             INSERT INTO dataset_meta(key, value) VALUES('source_file_name', '');
@@ -189,9 +189,85 @@ def test_storage_migrates_people_table_to_add_title_column(tmp_path: Path) -> No
         )
 
     repo = StorageRepository(db_path)
-    assert repo.dataset_state().schema_version == 3
+    assert repo.dataset_state().schema_version == 4
 
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         cols = {row["name"] for row in conn.execute("PRAGMA table_info(people)").fetchall()}
     assert "title" in cols
+
+
+def test_storage_migrates_parseable_time_columns_to_hh_mm(tmp_path: Path) -> None:
+    db_path = tmp_path / "legacy_times.sqlite3"
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE people (
+                id TEXT PRIMARY KEY,
+                first_name TEXT NOT NULL,
+                last_name TEXT NOT NULL,
+                title TEXT,
+                current_companion TEXT,
+                new_companion TEXT,
+                current_zone TEXT,
+                current_area TEXT,
+                new_zone TEXT,
+                new_area TEXT,
+                staying INTEGER,
+                pre_travel TEXT,
+                departure_terminal TEXT,
+                departure_time TEXT,
+                arrival_terminal TEXT,
+                arrival_time TEXT,
+                second_leg INTEGER,
+                second_departure_terminal TEXT,
+                second_departure_time TEXT,
+                second_arrival_terminal TEXT,
+                second_arrival_time TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                source_file_name TEXT,
+                source_row_number INTEGER,
+                dataset_version INTEGER NOT NULL
+            );
+            CREATE TABLE dataset_meta (key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE import_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                operation TEXT NOT NULL,
+                source_file_name TEXT,
+                created_at TEXT NOT NULL,
+                records_processed INTEGER NOT NULL,
+                records_inserted INTEGER NOT NULL,
+                records_updated INTEGER NOT NULL,
+                records_skipped INTEGER NOT NULL,
+                success INTEGER NOT NULL,
+                notes TEXT
+            );
+            INSERT INTO dataset_meta(key, value) VALUES('schema_version', '3');
+            INSERT INTO dataset_meta(key, value) VALUES('last_imported_at', '');
+            INSERT INTO dataset_meta(key, value) VALUES('record_count', '1');
+            INSERT INTO dataset_meta(key, value) VALUES('source_file_name', '');
+            INSERT INTO people(
+                id, first_name, last_name, title, current_companion, new_companion, current_zone,
+                current_area, new_zone, new_area, staying, pre_travel, departure_terminal,
+                departure_time, arrival_terminal, arrival_time, second_leg,
+                second_departure_terminal, second_departure_time, second_arrival_terminal,
+                second_arrival_time, created_at, updated_at, source_file_name, source_row_number, dataset_version
+            ) VALUES(
+                'p1', 'Jane', 'Smith', 'E', NULL, NULL, 'Zone A',
+                'Area 1', NULL, NULL, 1, NULL, 'Seoul',
+                '08:30:00', 'Busan', '09:45:59', 1,
+                'Daejeon', 'yellow line', 'Daegu',
+                '12:05:01', 'now', 'now', 'sample.xlsx', 2, 3
+            );
+            """
+        )
+
+    repo = StorageRepository(db_path)
+    person = repo.list_people()[0]
+
+    assert repo.dataset_state().schema_version == 4
+    assert person.departure_time == "08:30"
+    assert person.arrival_time == "09:45"
+    assert person.second_departure_time == "yellow line"
+    assert person.second_arrival_time == "12:05"

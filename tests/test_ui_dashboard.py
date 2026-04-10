@@ -179,6 +179,30 @@ def test_dashboard_includes_title_column_and_dash_display_for_blank_title() -> N
     root.destroy()
 
 
+def test_dashboard_formats_parseable_time_columns_to_hh_mm() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = DashboardView(root)
+    person = _sample_person()
+    person.departure_time = "08:30:00"
+    person.arrival_time = "09:45:59"
+    person.second_departure_time = "yellow line"
+    person.second_arrival_time = "12:05:01"
+
+    view.set_people([person])
+    row_values = view.tree.item("row-1", "values")
+
+    assert row_values[PERSON_FIELDS.index("departure_time")] == "08:30"
+    assert row_values[PERSON_FIELDS.index("arrival_time")] == "09:45"
+    assert row_values[PERSON_FIELDS.index("second_departure_time")] == "yellow line"
+    assert row_values[PERSON_FIELDS.index("second_arrival_time")] == "12:05"
+    root.destroy()
+
+
 def test_dashboard_theme_keeps_controls_readable(monkeypatch) -> None:
     try:
         root = tk.Tk()

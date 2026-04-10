@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -16,6 +15,7 @@ from .constants import (
     UNSUPPORTED_HEADER_WARNINGS,
 )
 from .models import ParsedDataset, ValidationError
+from .time_utils import normalize_clock_time, normalize_clock_time_or_text
 
 
 def normalize_text(value: Any) -> str | None:
@@ -42,33 +42,12 @@ def normalize_boolean(value: Any) -> tuple[bool | None, str | None]:
     return None, f"Unknown boolean literal '{text}' normalized to null"
 
 
-def _parse_time_text(text: str) -> str | None:
-    for fmt in ("%H:%M", "%H%M", "%I:%M %p"):
-        try:
-            parsed = datetime.strptime(text, fmt)
-            return parsed.strftime("%H:%M")
-        except ValueError:
-            continue
-    return None
-
-
 def normalize_time(value: Any) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, time):
-        return value.strftime("%H:%M")
-    if isinstance(value, datetime):
-        return value.strftime("%H:%M")
-    if isinstance(value, (int, float)):
-        frac = float(value) % 1.0
-        total_minutes = int(round(frac * 24 * 60)) % (24 * 60)
-        hh = total_minutes // 60
-        mm = total_minutes % 60
-        return f"{hh:02d}:{mm:02d}"
-    text = normalize_text(value)
-    if text is None:
-        return None
-    return _parse_time_text(text)
+    return normalize_clock_time(value)
+
+
+def normalize_time_or_text(value: Any) -> str | None:
+    return normalize_clock_time_or_text(value)
 
 
 def validate_headers(headers: list[str]) -> tuple[list[str], list[str]]:
@@ -158,7 +137,7 @@ def parse_records_from_rows(headers: list[str], rows: Iterable[Iterable[Any]], s
                     )
                 record[field] = tval
             elif field in ("departure_time", "second_departure_time"):
-                record[field] = normalize_text(raw)
+                record[field] = normalize_time_or_text(raw)
             else:
                 record[field] = normalize_text(raw)
 

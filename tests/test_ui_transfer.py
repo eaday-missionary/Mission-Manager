@@ -265,6 +265,32 @@ def test_schedule_text_view_combines_blocks_in_render_order() -> None:
     root.destroy()
 
 
+def test_schedule_text_view_sanitizes_legacy_hh_mm_ss_text() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = ScheduleTextView(root)
+    view.set_schedule(
+        [
+            _block(
+                "b1",
+                "1",
+                "Departure Time: 08:30:00\nArrival Time: 09:45:59\n---------------",
+                1,
+            ),
+        ]
+    )
+    rendered = view.text_widget.get("1.0", "end-1c")
+    assert "08:30:00" not in rendered
+    assert "09:45:59" not in rendered
+    assert "Departure Time: 08:30" in rendered
+    assert "Arrival Time: 09:45" in rendered
+    root.destroy()
+
+
 def test_schedule_text_view_live_search_highlight_and_wrap() -> None:
     try:
         root = tk.Tk()
@@ -445,6 +471,34 @@ def test_transfer_view_renders_card_text_and_styles() -> None:
     assert view.conflict_list.cget("fg") == "#F8FAFC"
     assert widget.tag_cget("search_match_all", "background") == "#87CEFA"
     assert widget.tag_cget("search_match_active", "background") == "#40E0D0"
+    root.destroy()
+
+
+def test_transfer_view_sanitizes_legacy_hh_mm_ss_text() -> None:
+    try:
+        root = tk.Tk()
+    except tk.TclError:
+        pytest.skip("Tkinter display not available in test environment.")
+        return
+
+    view = TransferEditorView(root)
+    block = ScheduleBlock(
+        block_id="block-1",
+        person_id="person-1",
+        person_display_name="Alpha One",
+        current_zone="Zone A",
+        starting_companionship_key="alpha+beta",
+        render_order=1,
+        raw_text="Departure Time: 08:30:00\nArrival Time: 09:45:59\n-----------------------------------",
+    )
+    view.set_schedule([block], [])
+    widget = view._block_text_widgets["block-1"]
+    rendered = widget.get("1.0", "end-1c")
+
+    assert "08:30:00" not in rendered
+    assert "09:45:59" not in rendered
+    assert "Departure Time: 08:30" in rendered
+    assert "Arrival Time: 09:45" in rendered
     root.destroy()
 
 

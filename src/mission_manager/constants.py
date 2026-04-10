@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 APP_NAME = "Mission Manager"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 CANONICAL_HEADERS = [
     "First Name",

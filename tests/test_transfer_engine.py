@@ -586,6 +586,40 @@ def test_parse_time_minutes_accepts_hh_mm_ss() -> None:
     assert _parse_time_minutes("08:00:00") == 8 * 60
 
 
+def test_render_transfer_schedule_formats_parseable_times_to_hh_mm() -> None:
+    people = [
+        _person(
+            pid="1",
+            first="Alex",
+            last="Kim",
+            current_companion="Ben Park",
+            new_companion="Chris Lee",
+            dep_terminal="Seoul Station",
+            dep_time="08:30:00",
+            arr_terminal="Busan Station",
+            arr_time="09:45:59",
+            second_leg=True,
+            dep2_terminal="Daejeon Station",
+            dep2_time="11:00:00",
+            arr2_terminal="Daegu Station",
+            arr2_time="12:05:01",
+        ),
+        _person(pid="2", first="Ben", last="Park", current_companion="Alex Kim"),
+        _person(pid="3", first="Chris", last="Lee", current_companion="Dana Shin"),
+    ]
+    result = render_transfer_schedule(people)
+    actor = next(block for block in result.blocks if block.person_id == "1")
+
+    assert "08:30:00" not in actor.raw_text
+    assert "09:45:59" not in actor.raw_text
+    assert "11:00:00" not in actor.raw_text
+    assert "12:05:01" not in actor.raw_text
+    assert "Departure Time: 08:30" in actor.raw_text
+    assert "Arrival Time: 09:45" in actor.raw_text
+    assert "Departure Time: 11:00" in actor.raw_text
+    assert "Arrival Time: 12:05" in actor.raw_text
+
+
 def test_render_transfer_schedule_staying_person_waits_when_new_companion_arrives_later() -> None:
     people = [
         _person(

@@ -142,7 +142,7 @@ def test_service_update_normalizes_detail_payload(tmp_path: Path) -> None:
     assert updated.second_leg is True
     assert updated.title == "S"
     assert updated.current_companion is None
-    assert updated.departure_time == "0945"
+    assert updated.departure_time == "09:45"
     assert updated.second_departure_time is None
 
 
@@ -168,8 +168,56 @@ def test_service_create_person_success_and_normalization(tmp_path: Path) -> None
     assert created.title == "E"
     assert created.staying is True
     assert created.second_leg is False
-    assert created.departure_time == "0715"
+    assert created.departure_time == "07:15"
     assert repo.dataset_state().record_count == 1
+
+
+def test_service_update_normalizes_hh_mm_ss_departure_fields(tmp_path: Path) -> None:
+    repo = StorageRepository(tmp_path / "svc.sqlite3")
+    svc = DashboardService(repo)
+    repo.replace_people(
+        [
+            {
+                "first_name": "Jane",
+                "last_name": "Smith",
+                "title": "E",
+                "current_companion": None,
+                "new_companion": None,
+                "current_zone": "Z1",
+                "current_area": "A1",
+                "new_zone": None,
+                "new_area": None,
+                "staying": True,
+                "pre_travel": None,
+                "departure_terminal": "T1",
+                "departure_time": "10:00",
+                "arrival_terminal": "T2",
+                "arrival_time": "11:00",
+                "second_leg": True,
+                "second_departure_terminal": "T3",
+                "second_departure_time": "12:00",
+                "second_arrival_terminal": "T4",
+                "second_arrival_time": "13:00",
+                "source_file_name": "x.xlsx",
+                "source_row_number": 2,
+            }
+        ],
+        source_file_name="x.xlsx",
+        processed=1,
+        skipped=0,
+    )
+    person = svc.list_people()[0]
+    updated, errors = svc.update_person(
+        person.id,
+        {
+            "departure_time": "08:30:00",
+            "second_departure_time": "14:45:59",
+        },
+    )
+    assert not errors
+    assert updated is not None
+    assert updated.departure_time == "08:30"
+    assert updated.second_departure_time == "14:45"
 
 
 def test_service_create_person_requires_names_and_valid_time(tmp_path: Path) -> None:

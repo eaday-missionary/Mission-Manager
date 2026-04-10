@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from mission_manager.models import ScheduleBlock, ScheduleConflict
+from mission_manager.time_utils import sanitize_time_text
 
 
 class TransferEditorView(ttk.Frame):
@@ -214,7 +215,7 @@ class TransferEditorView(ttk.Frame):
             title = ttk.Label(card, text=block.person_display_name or "-", style="Info.TLabel")
             title.grid(row=0, column=0, sticky="w", pady=(0, 4))
 
-            block_text = block.raw_text.rstrip("\n")
+            block_text = sanitize_time_text(block.raw_text.rstrip("\n"))
             text_widget = tk.Text(
                 card,
                 wrap="word",

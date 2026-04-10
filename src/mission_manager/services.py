@@ -20,6 +20,7 @@ from .models import (
     ValidationError,
 )
 from .storage import StorageRepository
+from .time_utils import normalize_clock_time_or_text
 from .transfer_conflicts import detect_transfer_conflicts
 from .transfer_engine import render_transfer_schedule
 
@@ -57,7 +58,7 @@ class DashboardService:
                     )
                 normalized[field] = tval
             elif field in ("departure_time", "second_departure_time"):
-                normalized[field] = normalize_text(value)
+                normalized[field] = normalize_clock_time_or_text(value)
             else:
                 normalized[field] = normalize_text(value)
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from mission_manager.importers import parse_excel_file
 from mission_manager.services import DashboardService
@@ -141,3 +142,8 @@ def test_march_2026_workbook_import_and_schedule_report_missing_companion(tmp_pa
         if conflict.conflict_type == "HANDOFF_REVIEW" and "companion pickup error" in conflict.message.lower()
     ]
     assert len(pickup_conflicts) == 11
+    combined_text = "\n".join(
+        block.raw_text.rstrip("\n")
+        for block in sorted(blocks, key=lambda block: block.render_order)
+    )
+    assert not re.search(r"\b\d{2}:\d{2}:\d{2}\b", combined_text)

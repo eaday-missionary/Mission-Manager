@@ -8,6 +8,7 @@ from tkinter import ttk
 from typing import Literal
 
 from mission_manager.models import PersonRecord, ScheduleBlock
+from mission_manager.time_utils import sanitize_time_text
 
 
 class ScheduleTextView(ttk.Frame):
@@ -165,7 +166,7 @@ class ScheduleTextView(ttk.Frame):
 
         rendered_blocks: list[str] = []
         for block in ordered:
-            block_text = block.raw_text.rstrip("\n")
+            block_text = sanitize_time_text(block.raw_text.rstrip("\n"))
             if self._name_mode == "missionary" and block.block_kind == "person":
                 block_text = self._replace_full_names(block_text, replacements)
             rendered_blocks.append(block_text)

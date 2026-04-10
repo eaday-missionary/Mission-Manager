@@ -8,6 +8,7 @@ from typing import Iterable, Literal
 from uuid import uuid4
 
 from .models import PersonRecord, ScheduleBlock, ScheduleError
+from .time_utils import format_time_display
 from .transfer_handoffs import (
     DropoffPlan,
     HandoffResolution,
@@ -114,7 +115,11 @@ def _parse_time_minutes(value: str | None) -> int | None:
 
 
 def _time_or_default(value: str | None) -> str:
-    return value if value else "00:00"
+    return format_time_display(
+        value,
+        blank_fallback="00:00",
+        preserve_non_time=True,
+    ) or "00:00"
 
 
 def _normalized_time_display(value: str | None) -> str:
@@ -164,9 +169,11 @@ def _contains_subway(value: str | None) -> bool:
 
 
 def _line_or_dash(value: str | None) -> str:
-    if _is_blank(value):
-        return "-"
-    return (value or "").strip() or "-"
+    return format_time_display(
+        value,
+        blank_fallback="-",
+        preserve_non_time=True,
+    ) or "-"
 
 
 def _cleanup_subway_terminal(value: str | None) -> str:

@@ -14,6 +14,7 @@ def test_normalize_boolean_variants() -> None:
 
 def test_normalize_time_variants() -> None:
     assert normalize_time("13:45") == "13:45"
+    assert normalize_time("13:45:59") == "13:45"
     assert normalize_time("1345") == "13:45"
     assert normalize_time(0.5) == "12:00"
     assert normalize_time("bad") is None
@@ -177,6 +178,59 @@ def test_departure_time_fields_allow_raw_text() -> None:
     assert not parsed.errors
     assert parsed.records[0]["departure_time"] == "yellow"
     assert parsed.records[0]["second_departure_time"] == "blue"
+
+
+def test_departure_time_fields_normalize_parseable_times() -> None:
+    headers = [
+        "First Name",
+        "Last Name",
+        "Title",
+        "Current Companion",
+        "New Companion",
+        "Current Zone",
+        "Current Area",
+        "New Zone",
+        "New Area",
+        "Staying or leaving?",
+        "Pre Travel",
+        "Departure Terminal",
+        "Departure Time",
+        "Arrival Terminal",
+        "Arrival Time",
+        "Second Leg?",
+        "2nd Departure Terminal",
+        "2nd Departure Time",
+        "2nd Arrival Terminal",
+        "2nd Arrival Time",
+    ]
+    rows = [[
+        "Jane",
+        "Smith",
+        "S",
+        "",
+        "",
+        "Zone A",
+        "Area A",
+        "Zone B",
+        "Area B",
+        "no",
+        "",
+        "Busan",
+        "08:30:00",
+        "Seoul",
+        "09:00:00",
+        "yes",
+        "Daejeon",
+        "13:15:59",
+        "Busan",
+        "15:00:01",
+    ]]
+    parsed = parse_records_from_rows(headers, rows, "file.xlsx")
+    assert not parsed.errors
+    assert parsed.records[0]["departure_time"] == "08:30"
+    assert parsed.records[0]["arrival_time"] == "09:00"
+    assert parsed.records[0]["second_departure_time"] == "13:15"
+    assert parsed.records[0]["second_arrival_time"] == "15:00"
 
 
 def test_invalid_arrival_time_still_fails_validation() -> None:
