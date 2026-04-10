@@ -530,9 +530,11 @@ def test_detect_transfer_conflicts_skips_companion_pickup_error_for_coordination
     ]
     rendered = render_transfer_schedule(people)
     conflicts = detect_transfer_conflicts(people, rendered.blocks, rendered.errors)
-    assert not any(
+    assert any(
         conflict.conflict_type == "HANDOFF_REVIEW"
         and "companion pickup error" in conflict.message.lower()
+        and "성남 종합 터미널" in conflict.affected_locations
+        and "죽전역" in conflict.affected_locations
         for conflict in conflicts
     )
 

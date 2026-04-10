@@ -306,6 +306,8 @@ def _staying_handoff_lines(
             f"Drop off {stop.person_name} at {stop.terminal}."
             for stop in dropoff_plan.stops
         ]
+        if pickup_mismatch:
+            lines.append(f"[New companion is arriving at {new_comp_availability.terminal}]")
         lines.append(MEETUP_COORDINATION_MESSAGE)
         return lines or [MEETUP_COORDINATION_MESSAGE]
     if not dropoff_plan.stops:

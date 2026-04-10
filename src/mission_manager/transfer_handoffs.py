@@ -722,8 +722,6 @@ def pickup_mismatch_review(
         return None
     if not dropoff_plan.stops:
         return None
-    if new_companion.coordination_required:
-        return None
     dropoff_terminal = dropoff_plan.final_reference.terminal
     reunion_terminal = new_companion.terminal
     if dropoff_terminal == "-" or reunion_terminal == "-":

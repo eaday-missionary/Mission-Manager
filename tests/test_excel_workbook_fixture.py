@@ -83,9 +83,9 @@ def test_march_2026_workbook_import_and_schedule_report_missing_companion(tmp_pa
     assert "Drop off Jake Matildo at 수원역." in anders.raw_text
     assert "Drop off Deakan Richeson at 수원 버스터미널. Wait at 수원 버스터미널 until your new companion, Cameron Spilker, arrives there at 14:24." in anders.raw_text
     assert "Drop off Zyra Pacaldo at 성남 버스 터미널." in yewon.raw_text
+    assert "[New companion is arriving at 죽전역]" in yewon.raw_text
     assert "Please communicate with your new companion to determine a meetup time in advance." in yewon.raw_text
     assert "will be waiting" not in yewon.raw_text
-    assert "[New companion is arriving at" not in yewon.raw_text
     assert "ERROR:" not in yewon.raw_text
     assert "subway " not in michelle.raw_text.lower()
     assert not any("Both companions are available at the same time." in block.raw_text for block in blocks)
@@ -128,9 +128,10 @@ def test_march_2026_workbook_import_and_schedule_report_missing_companion(tmp_pa
         and "전주고속버스터미널" in conflict.affected_locations
         for conflict in conflicts
     )
-    assert not any(
+    assert any(
         conflict.conflict_type == "HANDOFF_REVIEW"
         and "companion pickup error" in conflict.message.lower()
+        and "성남 버스 터미널" in conflict.affected_locations
         and "죽전역" in conflict.affected_locations
         for conflict in conflicts
     )
@@ -139,4 +140,4 @@ def test_march_2026_workbook_import_and_schedule_report_missing_companion(tmp_pa
         for conflict in conflicts
         if conflict.conflict_type == "HANDOFF_REVIEW" and "companion pickup error" in conflict.message.lower()
     ]
-    assert len(pickup_conflicts) < 11
+    assert len(pickup_conflicts) == 11

@@ -1397,12 +1397,12 @@ def test_render_transfer_schedule_staying_pickup_mismatch_with_subway_final_leg_
     result = render_transfer_schedule(people)
     actor = next(block for block in result.blocks if block.person_id == "1")
     assert "Drop off Zyra Pacaldo at 성남 종합 터미널." in actor.raw_text
+    assert "[New companion is arriving at 죽전역]" in actor.raw_text
     assert "Please communicate with your new companion to determine a meetup time in advance." in actor.raw_text
     assert "will be waiting" not in actor.raw_text
     assert "Wait at" not in actor.raw_text
-    assert "[New companion is arriving at" not in actor.raw_text
     assert "ERROR:" not in actor.raw_text
-    assert not any(
+    assert any(
         err.code == "HANDOFF_REVIEW"
         and "companion pickup error" in err.message.lower()
         for err in result.errors
