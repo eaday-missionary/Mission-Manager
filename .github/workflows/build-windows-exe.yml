@@ -37,7 +37,15 @@ jobs:
       - name: Archive distributable
         shell: pwsh
         run: |
-          Compress-Archive -Path .\dist\MissionManager\* -DestinationPath .\dist\MissionManager-win.zip -Force
+          if (Test-Path .\dist\MissionManager) {
+            Compress-Archive -Path .\dist\MissionManager\* -DestinationPath .\dist\MissionManager-win.zip -Force
+          }
+          elseif (Test-Path .\dist\MissionManager.exe) {
+            Compress-Archive -Path .\dist\MissionManager.exe -DestinationPath .\dist\MissionManager-win.zip -Force
+          }
+          else {
+            throw "No packaged app output was found in .\\dist after the PyInstaller build."
+          }
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
