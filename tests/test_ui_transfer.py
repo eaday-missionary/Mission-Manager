@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import font as tkfont
 from tkinter import ttk
 from types import SimpleNamespace
 
@@ -241,6 +242,8 @@ def test_app_theme_uses_clam_and_readable_tab_button_colors(monkeypatch) -> None
     assert style.lookup("TNotebook.Tab", "foreground") == "#E8ECF1"
     assert style.lookup("TNotebook.Tab", "background") == "#202632"
     assert style.lookup("Title.TLabel", "foreground") == "#E8ECF1"
+    assert tkfont.Font(font=app.schedule_text_view.text_widget.cget("font")).actual("family") == "Batang"
+    assert tkfont.Font(font=app.transfer_view.conflict_list.cget("font")).actual("family") == "Batang"
     root.destroy()
 
 

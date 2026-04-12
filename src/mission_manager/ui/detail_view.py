@@ -23,7 +23,7 @@ class DetailView(ttk.Frame):
         self.columnconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
 
-        title = ttk.Label(self, text="Person Detail", font=("Segoe UI", 12, "bold"))
+        title = ttk.Label(self, text="Person Detail", style="Title.TLabel")
         title.grid(row=0, column=0, sticky="w", pady=(0, 8))
 
         main = ttk.Frame(self)

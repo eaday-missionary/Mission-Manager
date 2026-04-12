@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import font as tkfont
 from tkinter import ttk
 from types import SimpleNamespace
 
@@ -231,4 +232,7 @@ def test_dashboard_theme_keeps_controls_readable(monkeypatch) -> None:
     assert style.lookup("ModeActive.TButton", "background") == "#3B82F6"
     assert style.lookup("Treeview.Heading", "foreground") == "#E8ECF1"
     assert style.lookup("Treeview.Heading", "background") == "#1A1E25"
+    assert tkfont.nametofont("TkDefaultFont").actual("family") == "Batang"
+    assert tkfont.nametofont("TkTextFont").actual("family") == "Batang"
+    assert style.lookup("Title.TLabel", "font") in {"Batang 14 bold", ("Batang", 14, "bold")}
     root.destroy()

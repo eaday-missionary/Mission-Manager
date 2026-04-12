@@ -13,7 +13,7 @@ class DataManagementView(ttk.Frame):
         self.on_replace = None
         self.on_clear = None
 
-        ttk.Label(self, text="Data Management", font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 8))
+        ttk.Label(self, text="Data Management", style="Title.TLabel").pack(anchor="w", pady=(0, 8))
 
         btns = ttk.Frame(self)
         btns.pack(anchor="w", pady=(0, 8))

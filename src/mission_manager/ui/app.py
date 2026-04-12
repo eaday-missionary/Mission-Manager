@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tkinter as tk
+from tkinter import font as tkfont
 from tkinter import ttk
 
 from mission_manager.services import DashboardService
@@ -94,6 +95,7 @@ class MissionManagerApp:
 
     def _apply_dark_theme(self) -> None:
         self.root.configure(background="#0F1115")
+        self._apply_global_fonts()
         style = ttk.Style(self.root)
         style.theme_use("clam")
 
@@ -107,12 +109,18 @@ class MissionManagerApp:
         border = "#2E3745"
         select_bg = "#2D6CDF"
 
-        style.configure(".", background=bg, foreground=text, fieldbackground=panel)
+        style.configure(
+            ".",
+            background=bg,
+            foreground=text,
+            fieldbackground=panel,
+            font=("Batang", 10),
+        )
         style.configure("TFrame", background=bg)
         style.configure("Card.TFrame", background=card, borderwidth=1, relief="solid")
-        style.configure("TLabel", background=bg, foreground=text)
-        style.configure("Title.TLabel", background=card, foreground=text, font=("Segoe UI", 14, "bold"))
-        style.configure("Info.TLabel", background=card, foreground=subtext)
+        style.configure("TLabel", background=bg, foreground=text, font=("Batang", 10))
+        style.configure("Title.TLabel", background=card, foreground=text, font=("Batang", 14, "bold"))
+        style.configure("Info.TLabel", background=card, foreground=subtext, font=("Batang", 10))
         style.configure(
             "TButton",
             background=accent,
@@ -175,7 +183,13 @@ class MissionManagerApp:
             selectforeground=[("readonly", text)],
         )
         style.configure("TNotebook", background=bg, borderwidth=0)
-        style.configure("TNotebook.Tab", background=panel, foreground=text, padding=(12, 8))
+        style.configure(
+            "TNotebook.Tab",
+            background=panel,
+            foreground=text,
+            padding=(12, 8),
+            font=("Batang", 10),
+        )
         style.map(
             "TNotebook.Tab",
             background=[("selected", card), ("active", panel)],
@@ -189,7 +203,7 @@ class MissionManagerApp:
             bordercolor=border,
             rowheight=26,
         )
-        style.configure("Treeview.Heading", background=card, foreground=text)
+        style.configure("Treeview.Heading", background=card, foreground=text, font=("Batang", 10, "bold"))
         style.map("Treeview", background=[("selected", select_bg)], foreground=[("selected", "#FFFFFF")])
         style.configure(
             "App.Vertical.TScrollbar",
@@ -225,6 +239,29 @@ class MissionManagerApp:
             background=[("active", "#4B5A74"), ("pressed", "#5A6B8A")],
             arrowcolor=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
         )
+
+    def _apply_global_fonts(self) -> None:
+        self.root.option_add("*Font", ("Batang", 10))
+        self.root.option_add("*Text.font", ("Batang", 10))
+        self.root.option_add("*Listbox.font", ("Batang", 10))
+        self.root.option_add("*Menu.font", ("Batang", 10))
+
+        named_fonts = {
+            "TkDefaultFont": ("Batang", 10, "normal"),
+            "TkTextFont": ("Batang", 10, "normal"),
+            "TkFixedFont": ("Batang", 10, "normal"),
+            "TkMenuFont": ("Batang", 10, "normal"),
+            "TkHeadingFont": ("Batang", 10, "bold"),
+            "TkCaptionFont": ("Batang", 10, "normal"),
+            "TkSmallCaptionFont": ("Batang", 9, "normal"),
+            "TkIconFont": ("Batang", 10, "normal"),
+            "TkTooltipFont": ("Batang", 10, "normal"),
+        }
+        for name, spec in named_fonts.items():
+            try:
+                tkfont.nametofont(name).configure(family=spec[0], size=spec[1], weight=spec[2])
+            except tk.TclError:
+                continue
 
     def request_refresh(self, *, debounce: bool = False) -> None:
         if debounce:
